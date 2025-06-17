@@ -1,0 +1,184 @@
+---
+/**
+ * Sprint metrics component for current sprint details
+ * Following Clean Code: Single responsibility, clear data display
+ */
+
+import type { SprintVelocity } from '../../lib/velocity/mock-calculator';
+import { formatDateForDisplay } from '../../lib/utils/dates';
+
+export interface Props {
+  currentSprint: SprintVelocity | null;
+  loading?: boolean;
+}
+
+const { currentSprint, loading = false } = Astro.props;
+
+function getSprintStatusColor(state: string): string {
+  switch (state) {
+    case 'active': return 'bg-blue-100 text-blue-800';
+    case 'closed': return 'bg-green-100 text-green-800';
+    case 'future': return 'bg-gray-100 text-gray-800';
+    default: return 'bg-gray-100 text-gray-800';
+  }
+}
+
+function getCompletionStatusColor(rate: number): string {
+  if (rate >= 80) return 'text-green-600';
+  if (rate >= 60) return 'text-yellow-600';
+  return 'text-red-600';
+}
+---
+
+<div class="sprint-metrics">
+  <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">
+      Current Sprint Metrics
+    </h3>
+    
+    {loading && (
+      <div class="sprint-loading">
+        <div class="animate-pulse">
+          <div class="h-4 bg-gray-200 rounded w-1/3 mb-3"></div>
+          <div class="h-8 bg-gray-200 rounded mb-4"></div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="h-16 bg-gray-200 rounded"></div>
+            <div class="h-16 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    )}
+    
+    {!loading && !currentSprint && (
+      <div class="sprint-empty">
+        <p class="text-gray-500 text-center py-8">
+          No active sprint found
+        </p>
+      </div>
+    )}
+    
+    {!loading && currentSprint && (
+      <div class="sprint-content">
+        <!-- Sprint Header -->
+        <div class="sprint-header mb-6">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xl font-medium text-gray-900">
+              {currentSprint.sprint.name}
+            </h4>
+            <span class={`px-2 py-1 text-xs font-medium rounded-full ${getSprintStatusColor(currentSprint.sprint.state)}`}>
+              {currentSprint.sprint.state}
+            </span>
+          </div>
+          
+          {currentSprint.sprint.goal && (
+            <p class="text-sm text-gray-600 mb-4">
+              <strong>Goal:</strong> {currentSprint.sprint.goal}
+            </p>
+          )}
+          
+          <div class="flex items-center space-x-4 text-sm text-gray-600">
+            <span>
+              <strong>Start:</strong> {formatDateForDisplay(currentSprint.sprint.startDate)}
+            </span>
+            <span>•</span>
+            <span>
+              <strong>End:</strong> {formatDateForDisplay(currentSprint.sprint.endDate)}
+            </span>
+            {currentSprint.sprint.completeDate && (
+              <>
+                <span>•</span>
+                <span>
+                  <strong>Completed:</strong> {formatDateForDisplay(currentSprint.sprint.completeDate)}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+        
+        <!-- Progress Metrics -->
+        <div class="progress-metrics grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="metric-card bg-blue-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-blue-600">
+              {currentSprint.committedPoints}
+            </div>
+            <div class="text-sm text-blue-800">
+              Committed Points
+            </div>
+          </div>
+          
+          <div class="metric-card bg-green-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-green-600">
+              {currentSprint.completedPoints}
+            </div>
+            <div class="text-sm text-green-800">
+              Completed Points
+            </div>
+          </div>
+          
+          <div class="metric-card bg-purple-50 p-4 rounded-lg">
+            <div class={`text-2xl font-bold ${getCompletionStatusColor(currentSprint.completionRate)}`}>
+              {currentSprint.completionRate}%
+            </div>
+            <div class="text-sm text-purple-800">
+              Completion Rate
+            </div>
+          </div>
+        </div>
+        
+        <!-- Progress Bar -->
+        <div class="progress-section">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-700">Sprint Progress</span>
+            <span class="text-sm text-gray-600">
+              {currentSprint.completedPoints} / {currentSprint.committedPoints} points
+            </span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-3">
+            <div 
+              class={`h-3 rounded-full transition-all duration-300 ${
+                currentSprint.completionRate >= 80 
+                  ? 'bg-green-500' 
+                  : currentSprint.completionRate >= 60 
+                    ? 'bg-yellow-500' 
+                    : 'bg-red-500'
+              }`}
+              style={`width: ${Math.min(currentSprint.completionRate, 100)}%`}
+            >
+            </div>
+          </div>
+        </div>
+        
+        {currentSprint.sprint.state === 'active' && (
+          <div class="mt-4 p-3 bg-blue-50 rounded-lg">
+            <div class="flex items-center">
+              <div class="text-blue-400">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                </svg>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm text-blue-800">
+                  This sprint is currently active. Metrics update in real-time.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+  </div>
+</div>
+
+<style>
+  .sprint-metrics {
+    @apply w-full;
+  }
+  
+  .metric-card {
+    @apply transition-transform duration-200;
+  }
+  
+  .metric-card:hover {
+    @apply transform scale-105;
+  }
+</style>

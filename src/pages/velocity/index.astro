@@ -1,0 +1,742 @@
+---
+/**
+ * Velocity Dashboard Page
+ * Following Clean Code: Single responsibility, clear data flow
+ */
+
+import Layout from '../../components/ui/Layout.astro';
+import BoardSelector from '../../components/velocity/BoardSelector.astro';
+import VelocityChart from '../../components/velocity/VelocityChart.astro';
+import SprintMetrics from '../../components/velocity/SprintMetrics.astro';
+import VelocityTrends from '../../components/velocity/VelocityTrends.astro';
+import LoadingSpinner from '../../components/ui/LoadingSpinner.astro';
+import VelocityProgressLoader from '../../components/ui/VelocityProgressLoader.astro';
+import SprintIssuesModal from '../../components/velocity/SprintIssuesModal.astro';
+
+// Fetch initial data server-side
+let boards = [];
+let error = null;
+
+try {
+  const response = await fetch(`${Astro.url.origin}/api/velocity/boards`);
+  const data = await response.json();
+  
+  if (response.ok) {
+    boards = data.boards || [];
+  } else {
+    error = data.error || 'Failed to load boards';
+  }
+} catch (e) {
+  error = 'Network error loading boards';
+}
+
+// Select first board by default if available
+const defaultBoardId = boards.length > 0 ? boards[0].id : null;
+---
+
+<Layout title="Velocity Dashboard - Jira Tool Analytics">
+  <div class="velocity-page">
+    <!-- Page Header -->
+    <div class="page-header mb-8">
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">
+        Velocity Dashboard
+      </h1>
+      <p class="text-gray-600">
+        Track sprint velocity and team performance across boards
+      </p>
+    </div>
+    
+    <!-- Error State -->
+    {error && (
+      <div class="error-banner bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+        <div class="flex">
+          <div class="text-red-400">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-red-800">
+              {error}
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
+    
+    <!-- Main Content -->
+    {!error && (
+      <div class="velocity-dashboard">
+        <!-- Board Selection -->
+        <div class="board-selection-section mb-8">
+          <BoardSelector 
+            boards={boards}
+            selectedBoardId={defaultBoardId}
+            disabled={boards.length === 0}
+          />
+        </div>
+        
+        <!-- Velocity Content -->
+        <div class="velocity-content-section">
+          <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            <!-- Main Velocity Chart -->
+            <div class="xl:col-span-2">
+              <div id="velocity-chart-container">
+                {defaultBoardId ? (
+                  <!-- Initial chart will be loaded via JavaScript -->
+                  <VelocityChart velocityData={null} loading={true} />
+                ) : (
+                  <VelocityChart velocityData={null} loading={false} />
+                )}
+              </div>
+            </div>
+            
+            <!-- Current Sprint Metrics -->
+            <div class="xl:col-span-1">
+              <div id="sprint-metrics-container">
+                <SprintMetrics currentSprint={null} loading={defaultBoardId ? true : false} />
+              </div>
+            </div>
+          </div>
+          
+          <!-- Velocity Trends Section -->
+          <div class="mt-8">
+            <div id="velocity-trends-container">
+              <VelocityTrends velocityData={null} loading={defaultBoardId ? true : false} />
+            </div>
+          </div>
+        </div>
+        
+        <!-- Loading overlay for dynamic updates -->
+        <div id="loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div id="progress-loader-container">
+            <VelocityProgressLoader />
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+  
+  <!-- Sprint Issues Modal -->
+  <SprintIssuesModal sprint={null} isOpen={false} />
+</Layout>
+
+<script>
+  // Client-side interactivity for dynamic board switching
+  // Following Clean Code: Express intent, single responsibility per function
+  
+  interface VelocityData {
+    boardId: string;
+    boardName: string;
+    sprints: any[];
+    closedSprints: any[];
+    activeSprint: any | null;
+    averageVelocity: number;
+    trend: string;
+    predictability: number;
+    totalSprintsAnalyzed: number;
+  }
+  
+  let currentBoardId: string | null = null;
+  
+  /**
+   * Fetches velocity data with real-time progress using Server-Sent Events
+   * Following Clean Code: Single responsibility, clear error handling
+   */
+  async function fetchVelocityDataWithProgress(boardId: string): Promise<VelocityData | null> {
+    return new Promise((resolve, reject) => {
+      const eventSource = new EventSource(`/api/velocity/${boardId}/progress`);
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const progressData = JSON.parse(event.data);
+          
+          switch (progressData.type) {
+            case 'progress':
+              updateProgressLoader(progressData);
+              break;
+              
+            case 'complete':
+              updateProgressLoader(progressData);
+              eventSource.close();
+              resolve(progressData.data);
+              break;
+              
+            case 'error':
+              updateProgressLoader(progressData);
+              eventSource.close();
+              reject(new Error(progressData.message));
+              break;
+          }
+        } catch (error) {
+          console.error('Error parsing progress data:', error);
+          eventSource.close();
+          reject(error);
+        }
+      };
+      
+      eventSource.onerror = (error) => {
+        console.error('EventSource error:', error);
+        eventSource.close();
+        reject(new Error('Connection error during velocity calculation'));
+      };
+    });
+  }
+
+  /**
+   * Updates the progress loader with current progress data
+   * Following Clean Code: Single responsibility, DOM manipulation
+   */
+  function updateProgressLoader(progressData: any) {
+    const container = document.getElementById('progress-loader-container');
+    if (!container) return;
+    
+    // Create updated progress loader HTML
+    const progressHTML = createProgressLoaderHTML(progressData);
+    container.innerHTML = progressHTML;
+  }
+
+  /**
+   * Creates HTML for the progress loader component
+   * Following Clean Code: Template generation, express intent
+   */
+  function createProgressLoaderHTML(progressData: any): string {
+    const { phase, currentSprint, totalSprints, sprintName, message } = progressData;
+    const progressPercentage = totalSprints > 0 ? Math.round((currentSprint / totalSprints) * 100) : 0;
+    
+    const phaseMessages = {
+      fetching: 'Fetching sprint data',
+      calculating: 'Calculating velocity',
+      validating: 'Validating issues', 
+      complete: 'Finalizing results'
+    };
+    
+    const phaseIcons = {
+      fetching: '📊',
+      calculating: '🔄',
+      validating: '✅',
+      complete: '🎉'
+    };
+    
+    return `
+      <div class="flex flex-col items-center justify-center p-6 bg-white rounded-lg shadow-lg max-w-md mx-auto">
+        <!-- Main spinner -->
+        <div class="animate-spin rounded-full border-4 border-gray-200 border-t-blue-600 w-12 h-12 mb-4"></div>
+        
+        <!-- Phase indicator -->
+        <div class="flex items-center mb-3">
+          <span class="text-2xl mr-2">${phaseIcons[phase as keyof typeof phaseIcons] || '🔄'}</span>
+          <span class="text-lg font-medium text-gray-800">${phaseMessages[phase as keyof typeof phaseMessages] || 'Processing...'}</span>
+        </div>
+        
+        <!-- Sprint progress -->
+        ${totalSprints > 0 && currentSprint > 0 ? `
+          <div class="w-full mb-4">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-sm font-medium text-gray-700">Sprint Progress</span>
+              <span class="text-sm text-gray-600">${currentSprint} / ${totalSprints}</span>
+            </div>
+            
+            <!-- Progress bar -->
+            <div class="w-full bg-gray-200 rounded-full h-3 mb-2">
+              <div 
+                class="h-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-300 ease-out"
+                style="width: ${progressPercentage}%"
+              ></div>
+            </div>
+            
+            <!-- Progress percentage -->
+            <div class="text-center">
+              <span class="text-2xl font-bold text-blue-600">${progressPercentage}%</span>
+              <span class="text-sm text-gray-600 ml-1">complete</span>
+            </div>
+          </div>
+        ` : ''}
+        
+        <!-- Current sprint being processed -->
+        ${sprintName ? `
+          <div class="text-center mb-3">
+            <p class="text-sm text-gray-600">Currently processing:</p>
+            <p class="text-base font-semibold text-gray-800 truncate max-w-xs" title="${sprintName}">
+              ${sprintName}
+            </p>
+          </div>
+        ` : ''}
+        
+        <!-- Status message -->
+        <p class="text-sm text-gray-600 text-center">${message}</p>
+        
+        <!-- Processing info -->
+        ${totalSprints > 0 && currentSprint > 0 ? `
+          <div class="mt-3 text-xs text-gray-500 text-center">
+            <p>Processing sprints... Please wait</p>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  /**
+   * Fallback to regular fetch if SSE is not supported
+   * Following Clean Code: Single responsibility, clear error handling
+   */
+  async function fetchVelocityData(boardId: string): Promise<VelocityData | null> {
+    try {
+      const response = await fetch(`/api/velocity/${boardId}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch velocity data: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching velocity data:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Updates the velocity chart with new data
+   * Following Clean Code: Clear function name, handles both success and error states
+   */
+  function updateVelocityChart(velocityData: VelocityData | null) {
+    const container = document.getElementById('velocity-chart-container');
+    if (!container) return;
+    
+    if (velocityData) {
+      // Store velocity data globally for modal access
+      (window as any).currentVelocityData = velocityData;
+      
+      // Create chart HTML dynamically
+      container.innerHTML = createVelocityChartHTML(velocityData);
+      
+      // Re-attach event listeners for sprint rows after dynamic content creation
+      attachSprintRowListeners();
+    } else {
+      container.innerHTML = '<div class="text-center text-gray-500 py-8">Failed to load velocity data</div>';
+    }
+  }
+  
+  /**
+   * Updates the sprint metrics with current active sprint data
+   * Following Clean Code: Single responsibility, express intent
+   */
+  function updateSprintMetrics(velocityData: VelocityData | null) {
+    const container = document.getElementById('sprint-metrics-container');
+    if (!container) return;
+    
+    if (velocityData) {
+      // Use the dedicated activeSprint property for current sprint metrics
+      const currentSprint = velocityData.activeSprint;
+      
+      container.innerHTML = createSprintMetricsHTML(currentSprint);
+    } else {
+      container.innerHTML = '<div class="text-center text-gray-500 py-8">Failed to load sprint data</div>';
+    }
+  }
+  
+  /**
+   * Updates the velocity trends component
+   * Following Clean Code: Express intent through naming
+   */
+  function updateVelocityTrends(velocityData: VelocityData | null) {
+    const container = document.getElementById('velocity-trends-container');
+    if (!container) return;
+    
+    if (velocityData) {
+      container.innerHTML = createVelocityTrendsHTML(velocityData);
+    } else {
+      container.innerHTML = '<div class="text-center text-gray-500 py-8">Failed to load trends data</div>';
+    }
+  }
+  
+  /**
+   * Creates HTML for sprint metrics
+   * Following Clean Code: Template-like function, clear structure
+   */
+  function createSprintMetricsHTML(currentSprint: any): string {
+    if (!currentSprint) {
+      return '<div class="text-center text-gray-500 py-8">No active sprint found</div>';
+    }
+    
+    const getSprintStatusColor = (state: string) => {
+      switch (state) {
+        case 'active': return 'bg-blue-100 text-blue-800';
+        case 'closed': return 'bg-green-100 text-green-800';
+        case 'future': return 'bg-gray-100 text-gray-800';
+        default: return 'bg-gray-100 text-gray-800';
+      }
+    };
+    
+    const getCompletionStatusColor = (rate: number) => {
+      if (rate >= 80) return 'text-green-600';
+      if (rate >= 60) return 'text-yellow-600';
+      return 'text-red-600';
+    };
+    
+    return `
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Current Sprint Metrics</h3>
+        
+        <div class="sprint-header mb-6">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xl font-medium text-gray-900">${currentSprint.sprint.name}</h4>
+            <span class="px-2 py-1 text-xs font-medium rounded-full ${getSprintStatusColor(currentSprint.sprint.state)}">
+              ${currentSprint.sprint.state}
+            </span>
+          </div>
+          ${currentSprint.sprint.goal ? `<p class="text-sm text-gray-600 mb-4"><strong>Goal:</strong> ${currentSprint.sprint.goal}</p>` : ''}
+        </div>
+        
+        <div class="progress-metrics grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="metric-card bg-blue-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-blue-600">${currentSprint.committedPoints}</div>
+            <div class="text-sm text-blue-800">Committed Points</div>
+          </div>
+          <div class="metric-card bg-green-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-green-600">${currentSprint.completedPoints}</div>
+            <div class="text-sm text-green-800">Completed Points</div>
+          </div>
+          <div class="metric-card bg-purple-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold ${getCompletionStatusColor(currentSprint.completionRate)}">${currentSprint.completionRate}%</div>
+            <div class="text-sm text-purple-800">Completion Rate</div>
+          </div>
+        </div>
+        
+        <div class="progress-section">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-700">Sprint Progress</span>
+            <span class="text-sm text-gray-600">${currentSprint.completedPoints} / ${currentSprint.committedPoints} points</span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-3">
+            <div class="h-3 rounded-full transition-all duration-300 ${
+              currentSprint.completionRate >= 80 ? 'bg-green-500' : 
+              currentSprint.completionRate >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+            }" style="width: ${Math.min(currentSprint.completionRate, 100)}%"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  /**
+   * Creates HTML for velocity trends
+   * Following Clean Code: Separate concerns, focused function
+   */
+  function createVelocityTrendsHTML(velocityData: VelocityData): string {
+    const getTrendIcon = (trend: string) => {
+      switch (trend) {
+        case 'increasing': return '📈';
+        case 'decreasing': return '📉';
+        case 'stable': return '📊';
+        default: return '📊';
+      }
+    };
+    
+    const getTrendColor = (trend: string) => {
+      switch (trend) {
+        case 'increasing': return 'text-green-600';
+        case 'decreasing': return 'text-red-600';
+        case 'stable': return 'text-blue-600';
+        default: return 'text-gray-600';
+      }
+    };
+    
+    const getPredictabilityColor = (predictability: number) => {
+      if (predictability >= 80) return 'text-green-600';
+      if (predictability >= 60) return 'text-yellow-600';
+      return 'text-red-600';
+    };
+    
+    return `
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Velocity Trends & Analysis</h3>
+        
+        <div class="trend-summary grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div class="trend-card bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg">
+            <h4 class="text-lg font-medium text-gray-900 mb-2">Velocity Trend</h4>
+            <div class="${getTrendColor(velocityData.trend)} text-2xl font-bold">
+              ${getTrendIcon(velocityData.trend)} ${velocityData.trend.charAt(0).toUpperCase() + velocityData.trend.slice(1)}
+            </div>
+            <p class="text-sm text-gray-600 mt-2">Based on ${velocityData.totalSprintsAnalyzed} closed sprints</p>
+          </div>
+          
+          <div class="predictability-card bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-lg">
+            <h4 class="text-lg font-medium text-gray-900 mb-2">Predictability</h4>
+            <div class="${getPredictabilityColor(velocityData.predictability)} text-2xl font-bold">${velocityData.predictability}%</div>
+            <p class="text-sm text-gray-600 mt-2">${
+              velocityData.predictability >= 80 ? 'High' : 
+              velocityData.predictability >= 60 ? 'Medium' : 'Low'
+            } consistency</p>
+          </div>
+        </div>
+        
+        <div class="insights-section">
+          <h4 class="text-lg font-medium text-gray-900 mb-4">Key Insights</h4>
+          <div class="insights-grid grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="insight-card p-4 bg-blue-50 rounded-lg">
+              <div class="flex items-start">
+                <div class="text-blue-500 mr-3 mt-1">💡</div>
+                <div>
+                  <h5 class="font-medium text-blue-900 mb-1">Average Velocity</h5>
+                  <p class="text-sm text-blue-800">Team completes an average of ${velocityData.averageVelocity} story points per sprint.</p>
+                </div>
+              </div>
+            </div>
+            <div class="insight-card p-4 bg-green-50 rounded-lg">
+              <div class="flex items-start">
+                <div class="text-green-500 mr-3 mt-1">📊</div>
+                <div>
+                  <h5 class="font-medium text-green-900 mb-1">Team Performance</h5>
+                  <p class="text-sm text-green-800">${
+                    velocityData.predictability >= 80 ? 'Highly consistent delivery with reliable planning.' :
+                    velocityData.predictability >= 60 ? 'Good consistency with room for improvement.' :
+                    'Variable performance suggests planning challenges.'
+                  }</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  function createVelocityChartHTML(data: VelocityData): string {
+    const formatTrend = (trend: string) => {
+      switch (trend) {
+        case 'increasing': return '📈 Increasing';
+        case 'decreasing': return '📉 Decreasing';
+        case 'stable': return '📊 Stable';
+        default: return '📊 Unknown';
+      }
+    };
+    
+    // Use only closed sprints for velocity analysis (last 5 closed sprints)
+    const recentClosedSprints = data.closedSprints.slice(-5);
+    
+    return `
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Velocity Analysis</h3>
+        
+        <div class="board-header mb-6">
+          <h4 class="font-medium text-gray-900">${data.boardName}</h4>
+          <p class="text-sm text-gray-600">${data.totalSprintsAnalyzed} closed sprints analyzed</p>
+          ${data.activeSprint ? 
+            `<p class="text-sm text-blue-600 mt-1">Active: ${data.activeSprint.sprint.name}</p>` : 
+            ''
+          }
+        </div>
+        
+        <div class="metrics-grid grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="metric-card bg-blue-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-blue-600">${data.averageVelocity}</div>
+            <div class="text-sm text-blue-800">Average Velocity</div>
+          </div>
+          <div class="metric-card bg-green-50 p-4 rounded-lg">
+            <div class="text-sm font-medium text-green-800">${formatTrend(data.trend)}</div>
+            <div class="text-sm text-green-600">Trend</div>
+          </div>
+          <div class="metric-card bg-purple-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-purple-600">${data.predictability}%</div>
+            <div class="text-sm text-purple-800">Predictability</div>
+          </div>
+        </div>
+        
+        <div class="sprints-list">
+          <h5 class="font-medium text-gray-900 mb-3">Last 5 Closed Sprints</h5>
+          <div class="space-y-2">
+            ${recentClosedSprints.length > 0 ? recentClosedSprints.reverse().map(sv => `
+              <div 
+                class="sprint-row flex justify-between items-center p-3 bg-gray-50 rounded cursor-pointer hover:bg-gray-100 transition-colors duration-150"
+                data-sprint-id="${sv.sprint.id}"
+                data-sprint-name="${sv.sprint.name}"
+                onclick="openSprintModal('${sv.sprint.id}', '${sv.sprint.name}')"
+                role="button"
+                tabindex="0"
+                aria-label="View issues for ${sv.sprint.name}"
+              >
+                <div>
+                  <div class="font-medium text-sm">${sv.sprint.name}</div>
+                  <div class="text-xs text-gray-600">Closed • Click to view issues</div>
+                </div>
+                <div class="text-right">
+                  <div class="font-medium text-sm">${sv.completedPoints}/${sv.committedPoints}</div>
+                  <div class="text-xs text-gray-600">${sv.completionRate}% complete</div>
+                </div>
+                <div class="ml-2 text-gray-400">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </div>
+              </div>
+            `).join('') : '<div class="text-center text-gray-500 py-4">No closed sprints available</div>'}
+          </div>
+          ${recentClosedSprints.length < 5 && recentClosedSprints.length > 0 ? 
+            `<p class="text-xs text-gray-500 mt-2 text-center">Showing ${recentClosedSprints.length} of 5 recent closed sprints</p>` : 
+            ''
+          }
+        </div>
+      </div>
+    `;
+  }
+  
+  /**
+   * Shows loading overlay
+   */
+  function showLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+    }
+  }
+  
+  /**
+   * Hides loading overlay
+   */
+  function hideLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.classList.add('hidden');
+    }
+  }
+  
+  /**
+   * Handles board change event with progress tracking
+   * Following Clean Code: Event handling with clear flow
+   */
+  async function handleBoardChange(event: CustomEvent) {
+    const { boardId } = event.detail;
+    
+    if (boardId === currentBoardId) return;
+    
+    currentBoardId = boardId;
+    showLoading();
+    
+    try {
+      // Try to use progress-enabled fetch first
+      const velocityData = await fetchVelocityDataWithProgress(boardId);
+      
+      // Update all components with new data
+      updateVelocityChart(velocityData);
+      updateSprintMetrics(velocityData);
+      updateVelocityTrends(velocityData);
+      
+    } catch (error) {
+      console.error('Failed to load velocity data with progress, falling back to regular fetch:', error);
+      
+      try {
+        // Fallback to regular fetch
+        const velocityData = await fetchVelocityData(boardId);
+        
+        updateVelocityChart(velocityData);
+        updateSprintMetrics(velocityData);
+        updateVelocityTrends(velocityData);
+      } catch (fallbackError) {
+        console.error('Failed to load velocity data:', fallbackError);
+        
+        // Show error state in components
+        updateVelocityChart(null);
+        updateSprintMetrics(null);
+        updateVelocityTrends(null);
+      }
+    } finally {
+      hideLoading();
+    }
+  }
+  
+  /**
+   * Attaches event listeners to sprint rows for modal functionality
+   * Following Clean Code: Single responsibility, clear intent
+   */
+  function attachSprintRowListeners() {
+    const sprintRows = document.querySelectorAll('.sprint-row[data-sprint-id]');
+    sprintRows.forEach(row => {
+      const sprintId = row.getAttribute('data-sprint-id');
+      const sprintName = row.getAttribute('data-sprint-name');
+      
+      if (sprintId && sprintName) {
+        // Add keyboard event listener
+        row.addEventListener('keydown', (event) => {
+          handleSprintKeyDown(event as KeyboardEvent, sprintId, sprintName);
+        });
+      }
+    });
+  }
+  
+  /**
+   * Handles keyboard navigation for sprint rows
+   * Following Clean Code: Accessibility support, clear intent
+   */
+  function handleSprintKeyDown(event: KeyboardEvent, sprintId: string, sprintName: string) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      (window as any).openSprintModal?.(sprintId, sprintName);
+    }
+  }
+  
+  /**
+   * Initializes the page
+   * Following Clean Code: Setup function with clear intent
+   */
+  async function initializePage() {
+    // Load initial data if board is pre-selected
+    const boardSelect = document.getElementById('board-select') as HTMLSelectElement;
+    if (boardSelect && boardSelect.value) {
+      currentBoardId = boardSelect.value;
+      const velocityData = await fetchVelocityData(currentBoardId);
+      
+      // Update all components with initial data
+      updateVelocityChart(velocityData);
+      updateSprintMetrics(velocityData);
+      updateVelocityTrends(velocityData);
+      hideLoading();
+    }
+  }
+  
+  /**
+   * Opens the sprint issues modal
+   * Following Clean Code: Clear intent, parameter validation
+   */
+  function openSprintModal(sprintId: string, sprintName: string) {
+    if (!sprintId) {
+      console.error('Sprint ID is required');
+      return;
+    }
+    
+    // Find the sprint data from the current velocity data
+    const velocityData = (window as any).currentVelocityData;
+    if (velocityData && velocityData.closedSprints) {
+      const selectedSprint = velocityData.closedSprints.find((sv: any) => sv.sprint.id === sprintId);
+      
+      if (selectedSprint) {
+        // Store selected sprint data
+        (window as any).currentSprintData = selectedSprint;
+        
+        // Show the modal
+        (window as any).showModal();
+        
+        // Load sprint issues
+        (window as any).loadSprintIssues(sprintId);
+      } else {
+        console.error('Sprint not found:', sprintId);
+      }
+    }
+  }
+  
+  // Make functions available globally
+  (window as any).openSprintModal = openSprintModal;
+  
+  // Event listeners
+  document.addEventListener('boardChanged', handleBoardChange as unknown as EventListener);
+  document.addEventListener('DOMContentLoaded', initializePage);
+</script>
+
+<style>
+  .velocity-page {
+    @apply max-w-7xl mx-auto;
+  }
+  
+  .velocity-dashboard {
+    @apply relative;
+  }
+</style>

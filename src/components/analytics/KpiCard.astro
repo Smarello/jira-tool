@@ -1,0 +1,68 @@
+---
+/**
+ * KPI Card component for dashboard metrics
+ * Following Clean Code: Express intent, small and focused
+ */
+
+export interface Props {
+  title: string;
+  value: number;
+  subtitle?: string;
+  trend?: 'up' | 'down' | 'neutral';
+  color?: 'blue' | 'green' | 'yellow' | 'red' | 'gray';
+}
+
+const { 
+  title, 
+  value, 
+  subtitle, 
+  trend = 'neutral',
+  color = 'blue' 
+} = Astro.props;
+
+// Color mappings following DRY principle
+const colorClasses = {
+  blue: 'border-blue-500 bg-blue-50',
+  green: 'border-green-500 bg-green-50',
+  yellow: 'border-yellow-500 bg-yellow-50',
+  red: 'border-red-500 bg-red-50',
+  gray: 'border-gray-500 bg-gray-50'
+};
+
+const textColorClasses = {
+  blue: 'text-blue-600',
+  green: 'text-green-600',
+  yellow: 'text-yellow-600',
+  red: 'text-red-600',
+  gray: 'text-gray-600'
+};
+
+const trendIcons = {
+  up: '↗',
+  down: '↘',
+  neutral: '→'
+};
+
+const trendColors = {
+  up: 'text-green-500',
+  down: 'text-red-500',
+  neutral: 'text-gray-500'
+};
+---
+
+<div class={`bg-white border-l-4 rounded-lg shadow-sm p-6 ${colorClasses[color]}`}>
+  <div class="flex items-center justify-between">
+    <div>
+      <p class="text-sm font-medium text-gray-600">{title}</p>
+      <p class={`text-3xl font-bold ${textColorClasses[color]}`}>
+        {value.toLocaleString()}
+      </p>
+      {subtitle && (
+        <p class="text-sm text-gray-500 mt-1">{subtitle}</p>
+      )}
+    </div>
+    <div class={`text-2xl ${trendColors[trend]}`}>
+      {trendIcons[trend]}
+    </div>
+  </div>
+</div>

@@ -1,0 +1,172 @@
+---
+/**
+ * Generic Modal component
+ * Following Clean Code: Single responsibility - modal display only
+ */
+
+export interface Props {
+  isOpen: boolean;
+  title: string;
+  onClose?: string; // JavaScript function name to call on close
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+}
+
+const { 
+  isOpen = false, 
+  title, 
+  onClose = 'closeModal',
+  size = 'lg' 
+} = Astro.props;
+
+const sizeClasses = {
+  sm: 'max-w-md',
+  md: 'max-w-lg', 
+  lg: 'max-w-4xl',
+  xl: 'max-w-6xl'
+};
+---
+
+<div 
+  id="modal-overlay" 
+  class={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isOpen ? 'block' : 'hidden'}`}
+  style="background-color: rgba(0, 0, 0, 0.5);"
+>
+  <div 
+    class={`bg-white rounded-lg shadow-xl w-full ${sizeClasses[size]} max-h-[90vh] overflow-hidden`}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-title"
+  >
+    <!-- Modal Header -->
+    <div class="flex items-center justify-between p-6 border-b border-gray-200">
+      <h2 id="modal-title" class="text-xl font-semibold text-gray-900">
+        {title}
+      </h2>
+      <button
+        type="button"
+        class="text-gray-400 hover:text-gray-600 transition-colors duration-200"
+        onclick={`${onClose}()`}
+        aria-label="Close modal"
+      >
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    
+    <!-- Modal Content -->
+    <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+      <slot />
+    </div>
+  </div>
+</div>
+
+<script>
+  // Modal functionality following Clean Code: Express intent, single responsibility
+  
+  /**
+   * Shows the modal
+   * Following Clean Code: Clear function name, no side effects
+   */
+  function showModal() {
+    const overlay = document.getElementById('modal-overlay');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+      overlay.classList.add('block');
+      
+      // Focus management for accessibility
+      const closeButton = overlay.querySelector('button[aria-label="Close modal"]') as HTMLElement;
+      if (closeButton) {
+        closeButton.focus();
+      }
+      
+      // Prevent body scroll
+      document.body.style.overflow = 'hidden';
+    }
+  }
+  
+  /**
+   * Hides the modal
+   * Following Clean Code: Clear function name, cleanup responsibility
+   */
+  function hideModal() {
+    const overlay = document.getElementById('modal-overlay');
+    if (overlay) {
+      overlay.classList.remove('block');
+      overlay.classList.add('hidden');
+      
+      // Restore body scroll
+      document.body.style.overflow = '';
+    }
+  }
+  
+  /**
+   * Handles modal close events
+   * Following Clean Code: Single responsibility, clear intent
+   */
+  function closeModal() {
+    hideModal();
+    
+    // Dispatch custom event for parent components
+    const closeEvent = new CustomEvent('modalClosed', {
+      bubbles: true
+    });
+    document.dispatchEvent(closeEvent);
+  }
+  
+  /**
+   * Handles keyboard events for modal
+   * Following Clean Code: Express intent, early return
+   */
+  function handleKeyDown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      closeModal();
+    }
+  }
+  
+  /**
+   * Handles overlay click to close modal
+   * Following Clean Code: Clear intent, prevent propagation
+   */
+  function handleOverlayClick(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (target.id === 'modal-overlay') {
+      closeModal();
+    }
+  }
+  
+  // Event listeners setup
+  document.addEventListener('DOMContentLoaded', () => {
+    const overlay = document.getElementById('modal-overlay');
+    if (overlay) {
+      overlay.addEventListener('click', handleOverlayClick);
+    }
+    
+    document.addEventListener('keydown', handleKeyDown);
+  });
+  
+  // Make functions available globally for onclick handlers
+  (window as any).showModal = showModal;
+  (window as any).hideModal = hideModal;
+  (window as any).closeModal = closeModal;
+</script>
+
+<style>
+  /* Smooth transitions following Clean Code: consistent styling */
+  #modal-overlay {
+    transition: opacity 0.3s ease-in-out;
+  }
+  
+  #modal-overlay.block {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+</style> 

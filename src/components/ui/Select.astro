@@ -1,0 +1,65 @@
+---
+/**
+ * Reusable Select component
+ * Following Clean Code: Single responsibility, clear interface
+ */
+
+export interface Props {
+  id: string;
+  name: string;
+  value?: string;
+  options: readonly SelectOption[];
+  placeholder?: string;
+  disabled?: boolean;
+  'aria-label'?: string;
+  class?: string;
+}
+
+export interface SelectOption {
+  readonly value: string;
+  readonly label: string;
+  readonly disabled?: boolean;
+}
+
+const { 
+  id,
+  name,
+  value,
+  options,
+  placeholder = 'Select an option...',
+  disabled = false,
+  'aria-label': ariaLabel,
+  class: className = ''
+} = Astro.props;
+---
+
+<select
+  id={id}
+  name={name}
+  value={value}
+  disabled={disabled}
+  aria-label={ariaLabel}
+  class={`
+    block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm
+    focus:outline-none focus:ring-blue-500 focus:border-blue-500
+    disabled:bg-gray-100 disabled:cursor-not-allowed
+    text-sm
+    ${className}
+  `}
+>
+  {placeholder && (
+    <option value="" disabled>
+      {placeholder}
+    </option>
+  )}
+  
+  {options.map(option => (
+    <option 
+      value={option.value} 
+      disabled={option.disabled}
+      selected={option.value === value}
+    >
+      {option.label}
+    </option>
+  ))}
+</select>

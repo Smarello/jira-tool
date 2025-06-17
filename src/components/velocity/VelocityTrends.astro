@@ -1,0 +1,257 @@
+---
+/**
+ * Velocity trends component for historical analysis
+ * Following Clean Code: Single responsibility, data visualization
+ */
+
+import type { EnhancedVelocityData } from '../../lib/velocity/mock-calculator';
+
+export interface Props {
+  velocityData: EnhancedVelocityData | null;
+  loading?: boolean;
+}
+
+const { velocityData, loading = false } = Astro.props;
+
+function getTrendIcon(trend: string): string {
+  switch (trend) {
+    case 'increasing': return '📈';
+    case 'decreasing': return '📉';
+    case 'stable': return '📊';
+    default: return '📊';
+  }
+}
+
+function getTrendColor(trend: string): string {
+  switch (trend) {
+    case 'increasing': return 'text-green-600';
+    case 'decreasing': return 'text-red-600';
+    case 'stable': return 'text-blue-600';
+    default: return 'text-gray-600';
+  }
+}
+
+function getPredictabilityColor(predictability: number): string {
+  if (predictability >= 80) return 'text-green-600';
+  if (predictability >= 60) return 'text-yellow-600';
+  return 'text-red-600';
+}
+
+function getPredictabilityLabel(predictability: number): string {
+  if (predictability >= 80) return 'High';
+  if (predictability >= 60) return 'Medium';
+  return 'Low';
+}
+---
+
+<div class="velocity-trends">
+  <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">
+      Velocity Trends & Analysis
+    </h3>
+    
+    {loading && (
+      <div class="trends-loading">
+        <div class="animate-pulse">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="h-24 bg-gray-200 rounded"></div>
+            <div class="h-24 bg-gray-200 rounded"></div>
+          </div>
+          <div class="h-32 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    )}
+    
+    {!loading && !velocityData && (
+      <div class="trends-empty">
+        <p class="text-gray-500 text-center py-8">
+          No velocity data available for trend analysis
+        </p>
+      </div>
+    )}
+    
+    {!loading && velocityData && (
+      <div class="trends-content">
+        <!-- Trend Summary -->
+        <div class="trend-summary grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div class="trend-card bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="text-lg font-medium text-gray-900 mb-2">
+                  Velocity Trend
+                </h4>
+                <div class={`text-2xl font-bold ${getTrendColor(velocityData.trend)}`}>
+                  {getTrendIcon(velocityData.trend)} {velocityData.trend.charAt(0).toUpperCase() + velocityData.trend.slice(1)}
+                </div>
+                <p class="text-sm text-gray-600 mt-2">
+                  Based on last {Math.min(velocityData.closedSprints.length, 5)} closed sprints
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="predictability-card bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-lg">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="text-lg font-medium text-gray-900 mb-2">
+                  Predictability
+                </h4>
+                <div class={`text-2xl font-bold ${getPredictabilityColor(velocityData.predictability)}`}>
+                  {velocityData.predictability}%
+                </div>
+                <p class="text-sm text-gray-600 mt-2">
+                  {getPredictabilityLabel(velocityData.predictability)} consistency
+                </p>
+              </div>
+              <div class="text-3xl">
+                {velocityData.predictability >= 80 ? '🎯' : velocityData.predictability >= 60 ? '⚡' : '⚠️'}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Sprint History Chart - Only Last 5 Closed Sprints -->
+        <div class="sprint-history">
+          <h4 class="text-lg font-medium text-gray-900 mb-4">Sprint Velocity History (Last 5 Closed Sprints)</h4>
+          <div class="chart-container">
+            <div class="chart-area bg-gray-50 rounded-lg p-4">
+              {velocityData.closedSprints.length > 0 ? (
+                <>
+                  <div class="flex items-end justify-between h-40 space-x-2">
+                    {/* closedSprints are sorted chronologically (oldest first), so .slice(-5) gets the most recent 5 */}
+                    {velocityData.closedSprints.slice(-5).map((sprintVelocity, index) => {
+                      const recentClosedSprints = velocityData.closedSprints.slice(-5);
+                      const maxVelocity = Math.max(...recentClosedSprints.map(sv => sv.velocityPoints));
+                      const height = maxVelocity > 0 ? (sprintVelocity.velocityPoints / maxVelocity) * 100 : 0;
+                      
+                      return (
+                        <div class="flex flex-col items-center flex-1">
+                          <div 
+                            class="w-full rounded-t transition-all duration-300 bg-blue-500 hover:bg-blue-600"
+                            style={`height: ${height}%`}
+                            title={`${sprintVelocity.sprint.name}: ${sprintVelocity.velocityPoints} points`}
+                          >
+                          </div>
+                          <div class="text-xs text-gray-600 mt-2 text-center">
+                            <div class="font-medium">{sprintVelocity.velocityPoints}</div>
+                            <div class="truncate w-16">{sprintVelocity.sprint.name.split(' ')[0]}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  <!-- Chart Legend -->
+                  <div class="flex items-center justify-center mt-4 space-x-4 text-sm text-gray-600">
+                    <div class="flex items-center">
+                      <div class="w-3 h-3 bg-blue-500 rounded mr-2"></div>
+                      <span>Closed Sprints</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div class="flex items-center justify-center h-40">
+                  <p class="text-gray-500">No closed sprints available for chart display</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Insights Section -->
+        <div class="insights-section mt-8">
+          <h4 class="text-lg font-medium text-gray-900 mb-4">Key Insights</h4>
+          <div class="insights-grid grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="insight-card p-4 bg-blue-50 rounded-lg">
+              <div class="flex items-start">
+                <div class="text-blue-500 mr-3 mt-1">💡</div>
+                <div>
+                  <h5 class="font-medium text-blue-900 mb-1">Average Velocity</h5>
+                  <p class="text-sm text-blue-800">
+                    Team completes an average of {velocityData.averageVelocity} story points per sprint.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="insight-card p-4 bg-green-50 rounded-lg">
+              <div class="flex items-start">
+                <div class="text-green-500 mr-3 mt-1">📊</div>
+                <div>
+                  <h5 class="font-medium text-green-900 mb-1">Team Performance</h5>
+                  <p class="text-sm text-green-800">
+                    {velocityData.predictability >= 80 
+                      ? 'Highly consistent delivery with reliable planning.' 
+                      : velocityData.predictability >= 60 
+                        ? 'Good consistency with room for improvement.' 
+                        : 'Variable performance suggests planning challenges.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {velocityData.trend === 'increasing' && (
+              <div class="insight-card p-4 bg-green-50 rounded-lg">
+                <div class="flex items-start">
+                  <div class="text-green-500 mr-3 mt-1">🚀</div>
+                  <div>
+                    <h5 class="font-medium text-green-900 mb-1">Positive Trend</h5>
+                    <p class="text-sm text-green-800">
+                      Team velocity is improving over time. Great progress!
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {velocityData.trend === 'decreasing' && (
+              <div class="insight-card p-4 bg-yellow-50 rounded-lg">
+                <div class="flex items-start">
+                  <div class="text-yellow-500 mr-3 mt-1">⚠️</div>
+                  <div>
+                    <h5 class="font-medium text-yellow-900 mb-1">Declining Trend</h5>
+                    <p class="text-sm text-yellow-800">
+                      Velocity has been decreasing. Consider reviewing team capacity and impediments.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {velocityData.closedSprints.length >= 3 && (
+              <div class="insight-card p-4 bg-purple-50 rounded-lg">
+                <div class="flex items-start">
+                  <div class="text-purple-500 mr-3 mt-1">🎯</div>
+                  <div>
+                    <h5 class="font-medium text-purple-900 mb-1">Planning Recommendation</h5>
+                    <p class="text-sm text-purple-800">
+                      For next sprint, consider committing to {Math.round(velocityData.averageVelocity * 0.9)}-{Math.round(velocityData.averageVelocity * 1.1)} story points.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+</div>
+
+<style>
+  .velocity-trends {
+    @apply w-full;
+  }
+  
+  .chart-area {
+    @apply min-h-48;
+  }
+  
+  .insight-card {
+    @apply transition-transform duration-200;
+  }
+  
+  .insight-card:hover {
+    @apply transform scale-105;
+  }
+</style>

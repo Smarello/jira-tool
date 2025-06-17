@@ -1,0 +1,195 @@
+---
+/**
+ * Project metrics component
+ * Following Clean Code: Single responsibility, readable structure, defensive programming
+ */
+
+import type { DashboardMetrics } from '../../lib/jira/types.js';
+import { calculatePercentage } from '../../lib/analytics/calculator.js';
+import KpiCard from '../analytics/KpiCard.astro';
+import LoadingSpinner from '../ui/LoadingSpinner.astro';
+
+export interface Props {
+  metrics?: DashboardMetrics | null;
+  projectKey?: string | null;
+  loading?: boolean;
+}
+
+const { metrics = null, projectKey = null, loading = false } = Astro.props;
+
+/**
+ * Defensive programming: Create safe default metrics to prevent runtime errors
+ * Following Clean Code: Express intent through naming
+ */
+const createDefaultMetrics = (): DashboardMetrics => ({
+  totalIssues: 0,
+  openIssues: 0,
+  inProgressIssues: 0,
+  resolvedIssues: 0,
+  averageResolutionDays: 0,
+  issuesByPriority: [],
+  issuesByType: []
+});
+
+/**
+ * Safe metrics access with null object pattern
+ * Following Clean Code: Fail-fast principle with clear error handling
+ */
+const safeMetrics = metrics || createDefaultMetrics();
+const displayProjectKey = projectKey || 'Unknown';
+
+// Calculate percentages only if we have valid data
+// Following Clean Code: Guard clauses to reduce nesting
+const hasValidData = metrics && metrics.totalIssues > 0;
+const openPercentage = hasValidData ? calculatePercentage(safeMetrics.openIssues, safeMetrics.totalIssues) : 0;
+const inProgressPercentage = hasValidData ? calculatePercentage(safeMetrics.inProgressIssues, safeMetrics.totalIssues) : 0;
+const resolvedPercentage = hasValidData ? calculatePercentage(safeMetrics.resolvedIssues, safeMetrics.totalIssues) : 0;
+---
+
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <h2 class="text-2xl font-bold text-gray-900">Project {displayProjectKey} Overview</h2>
+    <span class="text-sm text-gray-500">
+      Last updated: {new Date().toLocaleTimeString()}
+    </span>
+  </div>
+
+  <!-- Loading State -->
+  {loading && (
+    <div class="flex items-center justify-center py-12">
+      <LoadingSpinner />
+      <span class="ml-3 text-gray-600">Loading project metrics...</span>
+    </div>
+  )}
+
+  <!-- Empty State - No Data Available -->
+  {!loading && !hasValidData && (
+    <div class="bg-gray-50 rounded-lg p-8 text-center">
+      <div class="text-gray-400 mb-4">
+        <svg class="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      </div>
+      <h3 class="text-lg font-medium text-gray-900 mb-2">No Project Data Available</h3>
+      <p class="text-gray-600 mb-4">
+        Unable to load project metrics. This could be due to:
+      </p>
+      <ul class="text-sm text-gray-500 text-left max-w-md mx-auto space-y-1">
+        <li>• No issues found in the project</li>
+        <li>• API connection issues</li>
+        <li>• Invalid project configuration</li>
+      </ul>
+      <button 
+        class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        onclick="window.location.reload()"
+      >
+        Retry Loading
+      </button>
+    </div>
+  )}
+
+  <!-- Main Content - Only show when we have valid data -->
+  {!loading && hasValidData && (
+    <>
+      <!-- Main KPI Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <KpiCard
+          title="Total Issues"
+          value={safeMetrics.totalIssues}
+          color="blue"
+          trend="neutral"
+        />
+        
+        <KpiCard
+          title="Open Issues"
+          value={safeMetrics.openIssues}
+          subtitle={`${openPercentage}% of total`}
+          color="yellow"
+          trend="neutral"
+        />
+        
+        <KpiCard
+          title="In Progress"
+          value={safeMetrics.inProgressIssues}
+          subtitle={`${inProgressPercentage}% of total`}
+          color="blue"
+          trend="up"
+        />
+        
+        <KpiCard
+          title="Resolved"
+          value={safeMetrics.resolvedIssues}
+          subtitle={`${resolvedPercentage}% of total`}
+          color="green"
+          trend="up"
+        />
+      </div>
+
+      <!-- Average Resolution Time -->
+      {safeMetrics.averageResolutionDays > 0 && (
+        <div class="bg-white rounded-lg shadow-sm p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">
+            Performance Metrics
+          </h3>
+          <div class="flex items-center space-x-4">
+            <div class="flex items-center">
+              <span class="text-2xl font-bold text-indigo-600">
+                {safeMetrics.averageResolutionDays}
+              </span>
+              <span class="text-gray-600 ml-2">days avg. resolution</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <!-- Priority and Type Breakdown -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Priority Breakdown -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Issues by Priority</h3>
+          <div class="space-y-3">
+            {safeMetrics.issuesByPriority.length > 0 ? (
+              safeMetrics.issuesByPriority.map(({ priority, count }) => {
+                const percentage = calculatePercentage(count, safeMetrics.totalIssues);
+                return (
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-700">{priority}</span>
+                    <div class="flex items-center space-x-2">
+                      <span class="text-sm text-gray-600">{count}</span>
+                      <span class="text-xs text-gray-500">({percentage}%)</span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p class="text-sm text-gray-500 italic">No priority data available</p>
+            )}
+          </div>
+        </div>
+
+        <!-- Type Breakdown -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Issues by Type</h3>
+          <div class="space-y-3">
+            {safeMetrics.issuesByType.length > 0 ? (
+              safeMetrics.issuesByType.map(({ type, count }) => {
+                const percentage = calculatePercentage(count, safeMetrics.totalIssues);
+                return (
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-700">{type}</span>
+                    <div class="flex items-center space-x-2">
+                      <span class="text-sm text-gray-600">{count}</span>
+                      <span class="text-xs text-gray-500">({percentage}%)</span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p class="text-sm text-gray-500 italic">No type data available</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  )}
+</div>

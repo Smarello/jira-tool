@@ -1,0 +1,71 @@
+---
+/**
+ * Base layout component
+ * Following Clean Code: Single responsibility, clear structure
+ */
+
+import '../../styles/global.css';
+
+export interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'Jira Tool Analytics Dashboard' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+  </head>
+  <body class="bg-gray-50 min-h-screen">
+    <header class="bg-white shadow-sm border-b border-gray-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+          <div class="flex items-center">
+            <h1 class="text-xl font-semibold text-gray-900">
+              Jira Tool Analytics
+            </h1>
+          </div>
+          <nav class="flex space-x-4">
+            <a 
+              href="/" 
+              class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+            >
+              Dashboard
+            </a>
+            <a 
+              href="/velocity/" 
+              class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+            >
+              Velocity
+            </a>
+            <a 
+              href="/analytics" 
+              class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+            >
+              Analytics
+            </a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <slot />
+    </main>
+
+    <footer class="bg-white border-t border-gray-200 mt-12">
+      <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
+        <p class="text-center text-sm text-gray-500">
+          © 2025 Jira Tool. Analytics Dashboard.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

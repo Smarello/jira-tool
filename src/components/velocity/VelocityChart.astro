@@ -1,0 +1,274 @@
+---
+/**
+ * Velocity chart visualization component
+ * Following Clean Code: Single responsibility - velocity display only
+ */
+
+import type { EnhancedVelocityData } from '../../lib/velocity/mock-calculator';
+import SprintIssuesModal from './SprintIssuesModal.astro';
+
+export interface Props {
+  velocityData: EnhancedVelocityData | null;
+  loading?: boolean;
+}
+
+const { velocityData, loading = false } = Astro.props;
+
+// Helper function to format velocity trend
+function formatTrend(trend: string): string {
+  switch (trend) {
+    case 'increasing': return '📈 Increasing';
+    case 'decreasing': return '📉 Decreasing';
+    case 'stable': return '📊 Stable';
+    default: return '📊 Unknown';
+  }
+}
+---
+
+<div class="velocity-chart">
+  <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">
+      Velocity Analysis
+    </h3>
+    
+    {loading && (
+      <div class="velocity-loading">
+        <div class="animate-pulse">
+          <div class="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
+          <div class="h-32 bg-gray-200 rounded mb-4"></div>
+          <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+        </div>
+      </div>
+    )}
+    
+    {!loading && !velocityData && (
+      <div class="velocity-empty">
+        <p class="text-gray-500 text-center py-8">
+          Select a board to view velocity data
+        </p>
+      </div>
+    )}
+    
+    {!loading && velocityData && (
+      <div class="velocity-content">
+        <!-- Board Header -->
+        <div class="board-header mb-6">
+          <h4 class="font-medium text-gray-900">
+            {velocityData.boardName}
+          </h4>
+          <p class="text-sm text-gray-600">
+            {velocityData.totalSprintsAnalyzed} closed sprints analyzed
+          </p>
+          {velocityData.activeSprint && (
+            <p class="text-sm text-blue-600 mt-1">
+              Active: {velocityData.activeSprint.sprint.name}
+            </p>
+          )}
+        </div>
+        
+        <!-- Key Metrics -->
+        <div class="metrics-grid grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="metric-card bg-blue-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-blue-600">
+              {velocityData.averageVelocity}
+            </div>
+            <div class="text-sm text-blue-800">
+              Average Velocity
+            </div>
+          </div>
+          
+          <div class="metric-card bg-green-50 p-4 rounded-lg">
+            <div class="text-sm font-medium text-green-800">
+              {formatTrend(velocityData.trend)}
+            </div>
+            <div class="text-sm text-green-600">
+              Trend
+            </div>
+          </div>
+          
+          <div class="metric-card bg-purple-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-purple-600">
+              {velocityData.predictability}%
+            </div>
+            <div class="text-sm text-purple-800">
+              Predictability
+            </div>
+          </div>
+        </div>
+        
+        <!-- Sprint List - Only Last 5 Closed Sprints -->
+        <div class="sprints-list">
+          <h5 class="font-medium text-gray-900 mb-3">Last 5 Closed Sprints</h5>
+          <div class="space-y-2">
+            {/* closedSprints are sorted chronologically (oldest first), so .slice(-5).reverse() shows most recent first */}
+            {velocityData.closedSprints.slice(-5).reverse().map(sprintVelocity => (
+              <div 
+                class="sprint-row flex justify-between items-center p-3 bg-gray-50 rounded cursor-pointer hover:bg-gray-100 transition-colors duration-150"
+                data-sprint-id={sprintVelocity.sprint.id}
+                data-sprint-name={sprintVelocity.sprint.name}
+                onclick={`openSprintModal('${sprintVelocity.sprint.id}', '${sprintVelocity.sprint.name}')`}
+                role="button"
+                tabindex="0"
+                aria-label={`View issues for ${sprintVelocity.sprint.name}`}
+              >
+                <div>
+                  <div class="font-medium text-sm">
+                    {sprintVelocity.sprint.name}
+                  </div>
+                  <div class="text-xs text-gray-600">
+                    Closed • Click to view issues
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="font-medium text-sm">
+                    {sprintVelocity.completedPoints}/{sprintVelocity.committedPoints}
+                  </div>
+                  <div class="text-xs text-gray-600">
+                    {sprintVelocity.completionRate}% complete
+                  </div>
+                </div>
+                <div class="ml-2 text-gray-400">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {velocityData.closedSprints.length === 0 && (
+            <div class="text-center text-gray-500 py-4">
+              No closed sprints available
+            </div>
+          )}
+          
+          {velocityData.closedSprints.length < 5 && velocityData.closedSprints.length > 0 && (
+            <p class="text-xs text-gray-500 mt-2 text-center">
+              Showing {velocityData.closedSprints.length} of 5 recent closed sprints
+            </p>
+          )}
+        </div>
+      </div>
+    )}
+  </div>
+</div>
+
+<!-- Sprint Issues Modal -->
+<SprintIssuesModal sprint={null} isOpen={false} />
+
+<script>
+  // Sprint modal functionality
+  // Following Clean Code: Express intent, single responsibility
+  
+  let selectedSprint: any = null;
+  
+  /**
+   * Opens the sprint issues modal
+   * Following Clean Code: Clear intent, parameter validation
+   */
+  function openSprintModal(sprintId: string, sprintName: string) {
+    if (!sprintId) {
+      console.error('Sprint ID is required');
+      return;
+    }
+    
+    // Find the sprint data from the current velocity data
+    const velocityData = (window as any).currentVelocityData;
+    if (velocityData && velocityData.closedSprints) {
+      selectedSprint = velocityData.closedSprints.find((sv: any) => sv.sprint.id === sprintId);
+    }
+    
+    if (!selectedSprint) {
+      console.error('Sprint not found:', sprintId);
+      return;
+    }
+    
+    // Update modal content with selected sprint
+    updateSprintModalContent(selectedSprint);
+    
+    // Show the modal
+    (window as any).showModal();
+    
+    // Load sprint issues
+    (window as any).loadSprintIssues(sprintId);
+  }
+  
+  /**
+   * Updates the modal content with sprint data
+   * Following Clean Code: Single responsibility, clear structure
+   */
+  function updateSprintModalContent(sprint: any) {
+    // Update modal title
+    const modalTitle = document.getElementById('modal-title');
+    if (modalTitle) {
+      modalTitle.textContent = `Sprint: ${sprint.sprint.name}`;
+    }
+    
+    // Update sprint info in the modal
+    const sprintInfoElements = {
+      completedPoints: sprint.completedPoints,
+      committedPoints: sprint.committedPoints,
+      completionRate: sprint.completionRate,
+      state: sprint.sprint.state,
+      startDate: sprint.sprint.startDate,
+      endDate: sprint.sprint.endDate,
+      completeDate: sprint.sprint.completeDate,
+      goal: sprint.sprint.goal
+    };
+    
+    // Store sprint data for the modal component
+    (window as any).currentSprintData = sprintInfoElements;
+  }
+  
+  /**
+   * Handles keyboard navigation for sprint rows
+   * Following Clean Code: Accessibility support, clear intent
+   */
+  function handleSprintKeyDown(event: KeyboardEvent, sprintId: string, sprintName: string) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openSprintModal(sprintId, sprintName);
+    }
+  }
+  
+  // Event listeners setup
+  document.addEventListener('DOMContentLoaded', () => {
+    // Add keyboard event listeners to sprint rows
+    const sprintRows = document.querySelectorAll('.sprint-row[data-sprint-id]');
+    sprintRows.forEach(row => {
+      const sprintId = row.getAttribute('data-sprint-id');
+      const sprintName = row.getAttribute('data-sprint-name');
+      
+      if (sprintId && sprintName) {
+        row.addEventListener('keydown', (event) => {
+          handleSprintKeyDown(event as KeyboardEvent, sprintId, sprintName);
+        });
+      }
+    });
+  });
+  
+  // Make function available globally
+  (window as any).openSprintModal = openSprintModal;
+</script>
+
+<style>
+  .velocity-chart {
+    @apply w-full;
+  }
+  
+  .sprint-row {
+    @apply transition-all duration-150;
+  }
+  
+  .sprint-row:hover {
+    @apply bg-gray-100 shadow-sm;
+  }
+  
+  .sprint-row:focus {
+    @apply outline-none ring-2 ring-blue-500 ring-opacity-50;
+  }
+  
+  .sprint-row:active {
+    @apply transform scale-95;
+  }
+</style>

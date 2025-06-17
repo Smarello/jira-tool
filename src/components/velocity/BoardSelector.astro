@@ -1,0 +1,85 @@
+---
+/**
+ * Board selection component
+ * Following Clean Code: Single responsibility - board selection only
+ */
+
+import Select from '../ui/Select.astro';
+import type { JiraBoard } from '../../lib/jira/boards';
+
+export interface Props {
+  boards: readonly JiraBoard[];
+  selectedBoardId?: string;
+  disabled?: boolean;
+}
+
+const { boards, selectedBoardId, disabled = false } = Astro.props;
+
+// Transform boards to select options
+const boardOptions = boards.map(board => ({
+  value: board.id,
+  label: `${board.name} (${board.type})`
+}));
+---
+
+<div class="board-selector">
+  <label 
+    for="board-select" 
+    class="block text-sm font-medium text-gray-700 mb-2"
+  >
+    Select Board
+  </label>
+  
+  <Select
+    id="board-select"
+    name="boardId"
+    value={selectedBoardId}
+    options={boardOptions}
+    placeholder="Choose a board..."
+    disabled={disabled}
+    aria-label="Select board for velocity analysis"
+    class="board-select"
+  />
+</div>
+
+<script>
+  // Client-side interactivity for board selection
+  // Following Clean Code: Express intent through naming
+  
+  function handleBoardChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    const selectedBoardId = target.value;
+    
+    if (selectedBoardId) {
+      // Dispatch custom event for parent components to handle
+      const boardChangeEvent = new CustomEvent('boardChanged', {
+        detail: { boardId: selectedBoardId },
+        bubbles: true
+      });
+      
+      document.dispatchEvent(boardChangeEvent);
+    }
+  }
+  
+  // Attach event listener when component is loaded
+  document.addEventListener('DOMContentLoaded', () => {
+    const boardSelect = document.getElementById('board-select');
+    if (boardSelect) {
+      boardSelect.addEventListener('change', handleBoardChange);
+    }
+  });
+</script>
+
+<style>
+  .board-selector {
+    @apply mb-6;
+  }
+  
+  .board-select {
+    @apply transition-colors duration-200;
+  }
+  
+  .board-select:hover:not(:disabled) {
+    @apply border-gray-400;
+  }
+</style>

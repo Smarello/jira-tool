@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom utilities for Jira Tool branding */
+.jira-tool-primary {
+  @apply bg-blue-600 text-white;
+}
+
+.jira-tool-secondary {
+  @apply bg-slate-500 text-white;
+}
+
+.jira-tool-accent {
+  @apply bg-sky-500 text-white;
+}
+
+/* Custom scrollbar styles */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-gray-100 rounded-lg;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-lg hover:bg-gray-400;
+}
+
+/* Loading animations */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Chart container styles */
+.chart-container {
+  @apply bg-white rounded-lg shadow-sm border border-gray-200 p-4;
+}
+
+.chart-title {
+  @apply text-lg font-semibold text-gray-900 mb-4;
+}
+
+/* Responsive utilities */
+@media (max-width: 640px) {
+  .responsive-grid {
+    @apply grid-cols-1;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .responsive-grid {
+    @apply grid-cols-2;
+  }
+}
+
+@media (min-width: 1025px) {
+  .responsive-grid {
+    @apply grid-cols-3;
+  }
+}

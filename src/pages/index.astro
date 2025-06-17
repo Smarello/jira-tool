@@ -1,0 +1,280 @@
+---
+/**
+ * Main dashboard page
+ * Clean Architecture: Presentation layer with proper data loading
+ */
+
+import Layout from '../components/ui/Layout.astro';
+import LoadingSpinner from '../components/ui/LoadingSpinner.astro';
+import ProjectMetrics from '../components/jira/ProjectMetrics.astro';
+import KpiCard from '../components/analytics/KpiCard.astro';
+import type { DashboardMetrics } from '../lib/jira/types.js';
+
+// Mock data for demonstration - in real app, this would come from API
+const mockKpis = [
+  {
+    title: 'Active Projects',
+    value: 12,
+    description: 'Projects currently in development'
+  },
+  {
+    title: 'Completed Sprints',
+    value: 45,
+    description: 'Sprints completed this quarter'
+  },
+  {
+    title: 'Average Velocity',
+    value: 23.5,
+    description: 'Story points per sprint'
+  },
+  {
+    title: 'Team Efficiency',
+    value: 87,
+    description: 'Based on planned vs completed work (87%)'
+  }
+];
+
+/**
+ * Load project metrics with proper error handling
+ * Following Clean Code: Express intent, handle failures gracefully
+ */
+let projectMetrics: DashboardMetrics | null = null;
+let projectKey: string | null = null;
+let metricsError: string | null = null;
+
+try {
+  // Try to load metrics from API
+  const baseUrl = Astro.url.origin;
+  const response = await fetch(`${baseUrl}/api/jira/analytics`);
+  
+  if (response.ok) {
+    const data = await response.json();
+    // Check if we received an error response
+    if (data.error) {
+      metricsError = data.error;
+    } else {
+      projectMetrics = data;
+      // Try to get project key from environment or config
+      projectKey = process.env.JIRA_PROJECT_KEY || 'DEMO';
+    }
+  } else {
+    metricsError = `API Error: ${response.status} ${response.statusText}`;
+  }
+} catch (error) {
+  // Network or parsing error
+  metricsError = 'Unable to connect to analytics API';
+  console.error('Dashboard metrics loading error:', error);
+}
+---
+
+<Layout title="Dashboard - Jira Tool Analytics">
+  <div class="space-y-6">
+    <!-- Page Header -->
+    <div class="bg-white shadow rounded-lg">
+      <div class="px-4 py-5 sm:p-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">
+          Analytics Dashboard
+        </h1>
+        <p class="text-gray-600">
+          Monitor your team's performance and project metrics in real-time.
+        </p>
+        {metricsError && (
+          <div class="mt-3 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+            <div class="flex">
+              <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                </svg>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm text-yellow-700">
+                  <strong>Notice:</strong> {metricsError}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+
+    <!-- KPI Cards Grid -->
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      {mockKpis.map((kpi) => (
+        <KpiCard
+          title={kpi.title}
+          value={kpi.value}
+          subtitle={kpi.description}
+          color="blue"
+          trend="neutral"
+        />
+      ))}
+    </div>
+
+    <!-- Project Metrics Section -->
+    <div class="bg-white shadow rounded-lg">
+      <div class="px-4 py-5 sm:p-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">
+          Project Overview
+        </h2>
+        <!-- Pass proper props to ProjectMetrics component -->
+        <ProjectMetrics 
+          metrics={projectMetrics}
+          projectKey={projectKey}
+          loading={false}
+        />
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-white shadow rounded-lg">
+      <div class="px-4 py-5 sm:p-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">
+          Quick Actions
+        </h2>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <a
+            href="/velocity/"
+            class="group relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            <div>
+              <span class="rounded-lg inline-flex p-3 bg-blue-50 text-blue-600 ring-4 ring-white">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                </svg>
+              </span>
+            </div>
+            <div class="mt-8">
+              <h3 class="text-base font-medium text-gray-900">
+                Velocity Analysis
+              </h3>
+              <p class="mt-2 text-sm text-gray-500">
+                Track sprint velocity and team performance metrics.
+              </p>
+            </div>
+          </a>
+
+          <a
+            href="/analytics"
+            class="group relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            <div>
+              <span class="rounded-lg inline-flex p-3 bg-green-50 text-green-600 ring-4 ring-white">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" />
+                </svg>
+              </span>
+            </div>
+            <div class="mt-8">
+              <h3 class="text-base font-medium text-gray-900">
+                Advanced Analytics
+              </h3>
+              <p class="mt-2 text-sm text-gray-500">
+                Deep dive into project analytics and insights.
+              </p>
+            </div>
+          </a>
+
+          <a
+            href="/api/health"
+            class="group relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            <div>
+              <span class="rounded-lg inline-flex p-3 bg-purple-50 text-purple-600 ring-4 ring-white">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.611L5 14.5" />
+                </svg>
+              </span>
+            </div>
+            <div class="mt-8">
+              <h3 class="text-base font-medium text-gray-900">
+                System Health
+              </h3>
+              <p class="mt-2 text-sm text-gray-500">
+                Monitor API status and system performance.
+              </p>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<!-- Client-side enhancement for real-time updates -->
+<script>
+  /**
+   * Enhanced dashboard with real-time metrics loading
+   * Following Clean Code: Separation of concerns, clear intent
+   */
+  
+  /**
+   * Loads fresh metrics data from API
+   * Following Clean Code: Single responsibility, express intent
+   */
+  async function refreshMetrics(): Promise<void> {
+    try {
+      const response = await fetch('/api/jira/analytics');
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Reload page with fresh data
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('Failed to refresh metrics:', error);
+      
+      // Show user-friendly error message
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'fixed top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50';
+      errorDiv.innerHTML = `
+        <div class="flex items-center">
+          <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+          </svg>
+          <span>Failed to refresh metrics</span>
+        </div>
+      `;
+      
+      document.body.appendChild(errorDiv);
+      
+      // Auto-remove error message after 5 seconds
+      setTimeout(() => {
+        errorDiv.remove();
+      }, 5000);
+    }
+  }
+  
+  /**
+   * Initialize dashboard enhancements
+   * Following Clean Code: Clear initialization, modular setup
+   */
+  function initializeDashboard(): void {
+    // Add refresh button to retry loading button if it exists
+    const retryButton = document.querySelector('button[onclick="window.location.reload()"]');
+    if (retryButton) {
+      retryButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        refreshMetrics();
+      });
+    }
+    
+    // Auto-refresh metrics every 5 minutes
+    setInterval(refreshMetrics, 5 * 60 * 1000);
+  }
+  
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeDashboard);
+  } else {
+    initializeDashboard();
+  }
+</script>
