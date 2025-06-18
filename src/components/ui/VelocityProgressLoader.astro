@@ -1,116 +1,191 @@
 ---
 /**
- * Velocity progress loader with detailed sprint progression
- * Following Clean Code: Single responsibility, express intent
+ * Enhanced Velocity Progress Loader for Multi-Stage Loading
+ * Following Clean Code: Single responsibility, clear state management
+ * Strategy 5: Multi-Stage Loading - UI Component
  */
 
 export interface Props {
+  /** Board ID being loaded */
+  boardId: string;
+  /** Current loading stage */
+  stage: 'quick' | 'batch' | 'complete' | 'error';
+  /** Progress percentage (0-100) */
+  progress: number;
+  /** Current stage message */
+  message: string;
+  /** Number of sprints loaded so far */
+  sprintsLoaded?: number;
+  /** Total sprints available */
   totalSprints?: number;
-  currentSprint?: number;
-  sprintName?: string;
-  phase?: 'fetching' | 'calculating' | 'validating' | 'complete';
-  message?: string;
+  /** Enable cancel functionality */
+  allowCancel?: boolean;
+  /** Cancel callback */
+  onCancel?: () => void;
 }
 
 const { 
-  totalSprints = 0, 
-  currentSprint = 0, 
-  sprintName = '', 
-  phase = 'fetching',
-  message = 'Loading velocity data...' 
+  boardId,
+  stage = 'quick',
+  progress = 0,
+  message = 'Loading velocity data...',
+  sprintsLoaded = 0,
+  totalSprints = 0,
+  allowCancel = false,
+  onCancel
 } = Astro.props;
 
-const progressPercentage = totalSprints > 0 ? Math.round((currentSprint / totalSprints) * 100) : 0;
-
-const phaseMessages = {
-  fetching: 'Fetching sprint data',
-  calculating: 'Calculating velocity',
-  validating: 'Validating issues',
-  complete: 'Finalizing results'
+// Stage configurations for visual representation
+const stageConfig = {
+  quick: {
+    color: 'bg-blue-500',
+    icon: '⚡',
+    name: 'Quick Load',
+    description: 'Loading recent sprints for immediate insights'
+  },
+  batch: {
+    color: 'bg-indigo-500',
+    icon: '📊',
+    name: 'Historical Data',
+    description: 'Loading comprehensive sprint history'
+  },
+  complete: {
+    color: 'bg-green-500',
+    icon: '✅',
+    name: 'Complete',
+    description: 'All available data loaded successfully'
+  },
+  error: {
+    color: 'bg-red-500',
+    icon: '❌',
+    name: 'Error',
+    description: 'Failed to load velocity data'
+  }
 };
 
-const phaseIcons = {
-  fetching: '📊',
-  calculating: '🔄',
-  validating: '✅',
-  complete: '🎉'
-};
+const currentStage = stageConfig[stage];
+const progressClamped = Math.max(0, Math.min(100, progress));
 ---
 
-<div class="flex flex-col items-center justify-center p-6 bg-white rounded-lg shadow-lg max-w-md mx-auto">
-  <!-- Main spinner -->
-  <div class="animate-spin rounded-full border-4 border-gray-200 border-t-blue-600 w-12 h-12 mb-4"></div>
-  
-  <!-- Phase indicator -->
-  <div class="flex items-center mb-3">
-    <span class="text-2xl mr-2">{phaseIcons[phase]}</span>
-    <span class="text-lg font-medium text-gray-800">{phaseMessages[phase]}</span>
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-md mx-auto">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center space-x-2">
+      <span class="text-2xl">{currentStage.icon}</span>
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900">{currentStage.name}</h3>
+        <p class="text-sm text-gray-600">Board {boardId}</p>
+      </div>
+    </div>
+    
+    {allowCancel && onCancel && (
+      <button
+        type="button"
+        class="text-gray-400 hover:text-gray-600 transition-colors p-1"
+        onclick={`if(window.velocityLoader) window.velocityLoader.cancel()`}
+        title="Cancel loading"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    )}
   </div>
-  
-  <!-- Sprint progress -->
-  {totalSprints > 0 && currentSprint > 0 && (
-    <div class="w-full mb-4">
-      <div class="flex justify-between items-center mb-2">
-        <span class="text-sm font-medium text-gray-700">Sprint Progress</span>
-        <span class="text-sm text-gray-600">{currentSprint} / {totalSprints}</span>
-      </div>
-      
-      <!-- Progress bar -->
-      <div class="w-full bg-gray-200 rounded-full h-3 mb-2">
-        <div 
-          class="h-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-300 ease-out"
-          style={`width: ${progressPercentage}%`}
-        ></div>
-      </div>
-      
-      <!-- Progress percentage -->
-      <div class="text-center">
-        <span class="text-2xl font-bold text-blue-600">{progressPercentage}%</span>
-        <span class="text-sm text-gray-600 ml-1">complete</span>
+
+  <!-- Progress Bar -->
+  <div class="mb-4">
+    <div class="flex justify-between text-sm text-gray-600 mb-2">
+      <span>Progress</span>
+      <span>{progressClamped}%</span>
+    </div>
+    <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+      <div 
+        class={`h-full ${currentStage.color} transition-all duration-500 ease-out`}
+        style={`width: ${progressClamped}%`}
+      >
       </div>
     </div>
-  )}
-  
-  <!-- Current sprint being processed -->
-  {sprintName && (
-    <div class="text-center mb-3">
-      <p class="text-sm text-gray-600">Currently processing:</p>
-      <p class="text-base font-semibold text-gray-800 truncate max-w-xs" title={sprintName}>
-        {sprintName}
-      </p>
+  </div>
+
+  <!-- Stage Description -->
+  <p class="text-sm text-gray-600 mb-3">
+    {currentStage.description}
+  </p>
+
+  <!-- Current Message -->
+  <div class="bg-gray-50 rounded-md p-3 mb-4">
+    <p class="text-sm font-medium text-gray-700">{message}</p>
+  </div>
+
+  <!-- Sprint Counter (if available) -->
+  {totalSprints > 0 && (
+    <div class="flex justify-between text-xs text-gray-500">
+      <span>Sprints loaded: {sprintsLoaded}</span>
+      <span>Total available: {totalSprints}</span>
     </div>
   )}
-  
-  <!-- Status message -->
-  <p class="text-sm text-gray-600 text-center">{message}</p>
-  
-  <!-- Estimated time (optional) -->
-  {totalSprints > 0 && currentSprint > 0 && (
-    <div class="mt-3 text-xs text-gray-500 text-center">
-      <p>Processing sprints... Please wait</p>
+
+  <!-- Stage Indicators -->
+  <div class="mt-4 flex items-center justify-center space-x-2">
+    <div class={`w-3 h-3 rounded-full transition-colors ${
+      ['quick', 'batch', 'complete'].includes(stage) ? 'bg-blue-500' : 'bg-gray-300'
+    }`} title="Quick Load"></div>
+    <div class={`w-3 h-3 rounded-full transition-colors ${
+      ['batch', 'complete'].includes(stage) ? 'bg-indigo-500' : 'bg-gray-300'
+    }`} title="Historical Data"></div>
+    <div class={`w-3 h-3 rounded-full transition-colors ${
+      stage === 'complete' ? 'bg-green-500' : 'bg-gray-300'
+    }`} title="Complete"></div>
+  </div>
+
+  <!-- Error State -->
+  {stage === 'error' && (
+    <div class="mt-4 pt-4 border-t border-gray-200">
+      <div class="flex items-center space-x-2">
+        <button
+          type="button"
+          class="flex-1 bg-blue-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+          onclick="window.location.reload()"
+        >
+          Retry
+        </button>
+        <button
+          type="button"
+          class="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+          onclick="history.back()"
+        >
+          Go Back
+        </button>
+      </div>
     </div>
   )}
 </div>
 
+<!-- Loading Animation Styles -->
 <style>
-  /* Smooth animations for progress updates */
-  .transition-all {
-    transition-property: all;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 300ms;
-  }
-  
-  /* Pulsing animation for current sprint name */
-  .animate-pulse-subtle {
-    animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  
-  @keyframes pulse-subtle {
+  @keyframes pulse-glow {
     0%, 100% {
-      opacity: 1;
+      box-shadow: 0 0 5px rgba(59, 130, 246, 0.3);
     }
     50% {
-      opacity: 0.8;
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
     }
   }
-</style> 
+
+  .bg-blue-500,
+  .bg-indigo-500 {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  .bg-green-500,
+  .bg-red-500 {
+    animation: none;
+  }
+
+  /* Smooth progress bar animation */
+  .h-full {
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+</style>
+
+<!-- Note: Progress updates will be handled by parent components through re-rendering --> 

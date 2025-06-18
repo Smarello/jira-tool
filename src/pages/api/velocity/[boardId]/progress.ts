@@ -25,13 +25,32 @@ interface ProgressEvent {
   readonly data?: any;
 }
 
-export const GET: APIRoute = async ({ params, request }) => {
+export const GET: APIRoute = async ({ params, request, url }) => {
   const boardId = params.boardId;
   
   // Validate required parameter
   if (!boardId || typeof boardId !== 'string') {
     return new Response(
       JSON.stringify({ error: 'Board ID is required' }),
+      { 
+        status: 400, 
+        headers: { 'Content-Type': 'application/json' } 
+      }
+    );
+  }
+
+  // Parse query parameters for optimization
+  // Following Clean Code: Express intent, fail-fast validation
+  const searchParams = url.searchParams;
+  const limitParam = searchParams.get('limit');
+  const sprintLimit = limitParam ? parseInt(limitParam, 10) : null;
+  
+  // Validate limit parameter
+  if (limitParam && (isNaN(sprintLimit!) || sprintLimit! < 1 || sprintLimit! > 50)) {
+    return new Response(
+      JSON.stringify({ 
+        error: 'Limit must be a number between 1 and 50' 
+      }),
       { 
         status: 400, 
         headers: { 'Content-Type': 'application/json' } 
@@ -68,7 +87,9 @@ export const GET: APIRoute = async ({ params, request }) => {
             currentSprint: 0,
             totalSprints: 0,
             sprintName: '',
-            message: 'Initializing velocity calculation...'
+            message: sprintLimit 
+              ? `Initializing velocity calculation (limited to ${sprintLimit} sprints)...`
+              : 'Initializing velocity calculation...'
           });
 
           // Fetch sprints
@@ -113,11 +134,22 @@ export const GET: APIRoute = async ({ params, request }) => {
             return;
           }
 
+          // Apply sprint limit for performance optimization
+          // Following Clean Code: Immutability, clear transformations
+          let sprintsToProcess = sprintsResponse.data;
+          let limitMessage = '';
+          
+          if (sprintLimit && sprintsToProcess.length > sprintLimit) {
+            // Take the most recent sprints (last N sprints for better relevance)
+            sprintsToProcess = sprintsToProcess.slice(-sprintLimit);
+            limitMessage = ` (limited to last ${sprintLimit} of ${sprintsResponse.data.length} total sprints)`;
+          }
+
           // Get board info
           const boardResponse = await mcpClient.getBoardInfo(boardId);
           const boardName = boardResponse.success ? boardResponse.data.name : `Board ${boardId}`;
 
-          const totalSprints = sprintsResponse.data.length;
+          const totalSprints = sprintsToProcess.length;
           
           sendEvent({
             type: 'progress',
@@ -125,14 +157,14 @@ export const GET: APIRoute = async ({ params, request }) => {
             currentSprint: 0,
             totalSprints,
             sprintName: '',
-            message: `Found ${totalSprints} sprints to analyze`
+            message: `Found ${totalSprints} sprints to analyze${limitMessage}`
           });
 
           // Calculate velocity with progress callbacks
           const issuesApi = mcpClient.getIssuesApi();
           
           const sprintVelocities = await calculateRealSprintsVelocityWithProgress(
-            sprintsResponse.data,
+            sprintsToProcess,
             issuesApi,
             mcpClient,
             (currentSprint: number, sprintName: string, phase: string) => {
@@ -179,17 +211,25 @@ export const GET: APIRoute = async ({ params, request }) => {
             sprintVelocities
           );
 
-          // Send final results
+          // Send final results with metadata about limitations
           sendEvent({
             type: 'complete',
             phase: 'complete',
             currentSprint: totalSprints,
             totalSprints,
             sprintName: '',
-            message: 'Velocity calculation complete!',
+            message: limitMessage 
+              ? `Velocity calculation complete! Showing last ${sprintLimit} sprints.`
+              : 'Velocity calculation complete!',
             data: {
               ...velocityData,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              metadata: {
+                requestedLimit: sprintLimit,
+                totalSprintsAvailable: sprintsResponse.data.length,
+                sprintsAnalyzed: totalSprints,
+                limitApplied: sprintLimit !== null && sprintsResponse.data.length > sprintLimit
+              }
             }
           });
 

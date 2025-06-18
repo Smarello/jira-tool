@@ -63,7 +63,7 @@ export function calculateSprintVelocity(
 }
 
 /**
- * Calculates average velocity from sprint data
+ * Calculates average velocity from sprint data (returns integer)
  * Following Clean Code: Single responsibility, early return
  */
 export function calculateAverageVelocity(
@@ -82,6 +82,7 @@ export function calculateAverageVelocity(
     0
   );
 
+  // Always return integer for better UX display
   return Math.round(totalVelocity / completedSprints.length);
 }
 

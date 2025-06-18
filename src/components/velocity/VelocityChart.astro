@@ -23,6 +23,36 @@ function formatTrend(trend: string): string {
     default: return '📊 Unknown';
   }
 }
+
+// Helper function to get trend color
+function getTrendColor(trend: string): string {
+  switch (trend) {
+    case 'increasing': return 'text-green-600';
+    case 'decreasing': return 'text-red-600';
+    case 'stable': return 'text-blue-600';
+    default: return 'text-gray-600';
+  }
+}
+
+// Helper function to get trend icon
+function getTrendIcon(trend: string): string {
+  switch (trend) {
+    case 'increasing': return '📈';
+    case 'decreasing': return '📉';
+    case 'stable': return '📊';
+    default: return '📊';
+  }
+}
+
+// Helper function to get trend text
+function getTrendText(trend: string): string {
+  switch (trend) {
+    case 'increasing': return 'Increasing';
+    case 'decreasing': return 'Decreasing';
+    case 'stable': return 'Stable';
+    default: return 'Unknown';
+  }
+}
 ---
 
 <div class="velocity-chart">
@@ -78,8 +108,9 @@ function formatTrend(trend: string): string {
           </div>
           
           <div class="metric-card bg-green-50 p-4 rounded-lg">
-            <div class="text-sm font-medium text-green-800">
-              {formatTrend(velocityData.trend)}
+            <div class={`flex items-center space-x-2 ${getTrendColor(velocityData.trend)}`}>
+              <span class="text-3xl">{getTrendIcon(velocityData.trend)}</span>
+              <span class="text-xl font-bold">{getTrendText(velocityData.trend)}</span>
             </div>
             <div class="text-sm text-green-600">
               Trend

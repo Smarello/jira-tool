@@ -110,7 +110,13 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
         <!-- Loading overlay for dynamic updates -->
         <div id="loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
           <div id="progress-loader-container">
-            <VelocityProgressLoader />
+            <VelocityProgressLoader 
+              boardId={defaultBoardId || 'unknown'}
+              stage="quick"
+              progress={0}
+              message="Initializing velocity analysis..."
+              allowCancel={true}
+            />
           </div>
         </div>
       </div>
@@ -140,12 +146,128 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
   let currentBoardId: string | null = null;
   
   /**
+   * Fetches velocity data using multi-stage loading strategy
+   * Following Clean Code: Strategy pattern, graceful degradation
+   * Strategy 5: Multi-Stage Loading Implementation
+   */
+  async function fetchVelocityDataMultiStage(boardId: string): Promise<VelocityData | null> {
+    console.log('Starting multi-stage velocity loading for board:', boardId);
+    
+    // Map trend values from multi-stage format to legacy format
+    const mapTrend = (trend: string): string => {
+      switch (trend) {
+        case 'up': return 'increasing';
+        case 'down': return 'decreasing';
+        case 'stable': return 'stable';
+        case 'no-data': return 'stable';
+        default: return 'stable';
+      }
+    };
+    
+    try {
+      // Import multi-stage loader dynamically
+      const { loadVelocityDataMultiStage } = await import('../../lib/velocity/multi-stage-loader');
+      
+      // Configure for Vercel limitations
+      const config = {
+        maxIssuesPerBatch: 150,
+        maxSprintsPerBatch: 6,
+        enableParallelBatches: false,
+        stageTimeoutMs: 45000
+      };
+      
+      // Progress callback for UI updates
+      const onProgress = (progress: any) => {
+        console.log(`[${progress.stage}] ${progress.percentage}%: ${progress.message}`);
+        updateProgressLoader({
+          stage: progress.stage,
+          currentSprint: progress.completed,
+          totalSprints: progress.total,
+          message: progress.message,
+          percentage: progress.percentage
+        });
+      };
+      
+      // Load data with progress tracking
+      const combinedData = await loadVelocityDataMultiStage(boardId, config, onProgress);
+      
+      // Transform to legacy format for compatibility
+      const velocityData: VelocityData = {
+        boardId: combinedData.boardId,
+        boardName: combinedData.boardName,
+        sprints: combinedData.sprints,
+        closedSprints: combinedData.sprints.filter(s => s.sprint.state === 'closed'),
+        activeSprint: combinedData.sprints.find(s => s.sprint.state === 'active') || null,
+        averageVelocity: combinedData.averageVelocity,
+        trend: mapTrend(combinedData.trend),
+        predictability: combinedData.predictability,
+        totalSprintsAnalyzed: combinedData.summary.totalSprintsAnalyzed
+      };
+      
+      console.log(`Multi-stage loading complete: ${velocityData.totalSprintsAnalyzed} sprints analyzed`);
+      return velocityData;
+      
+    } catch (error) {
+      console.error('Multi-stage loading failed:', error);
+      
+      // Fallback to quick endpoint only
+      try {
+        console.log('Falling back to quick-only loading...');
+        const response = await fetch(`/api/velocity/${boardId}/quick`);
+        
+        if (response.ok) {
+          const quickData = await response.json();
+          
+          return {
+            boardId: quickData.boardId,
+            boardName: quickData.boardName,
+            sprints: quickData.sprints || [],
+            closedSprints: (quickData.sprints || []).filter((s: any) => s.sprint.state === 'closed'),
+            activeSprint: (quickData.sprints || []).find((s: any) => s.sprint.state === 'active') || null,
+            averageVelocity: Math.round(quickData.averageVelocity || 0),
+            trend: mapTrend(quickData.trend || 'stable'),
+            predictability: quickData.predictability || 0,
+            totalSprintsAnalyzed: quickData.sprintsAnalyzed || 0
+          };
+        }
+      } catch (fallbackError) {
+        console.error('Fallback to quick endpoint also failed:', fallbackError);
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Fetches velocity summary (fast endpoint)
+   * Following Clean Code: Single responsibility, clear intent
+   */
+  async function fetchVelocitySummary(boardId: string): Promise<VelocityData | null> {
+    try {
+      const response = await fetch(`/api/velocity/${boardId}/summary`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Summary fetch failed:', error);
+      return null;
+    }
+  }
+
+  /**
    * Fetches velocity data with real-time progress using Server-Sent Events
    * Following Clean Code: Single responsibility, clear error handling
    */
-  async function fetchVelocityDataWithProgress(boardId: string): Promise<VelocityData | null> {
+  async function fetchVelocityDataWithProgress(boardId: string, limit?: number): Promise<VelocityData | null> {
     return new Promise((resolve, reject) => {
-      const eventSource = new EventSource(`/api/velocity/${boardId}/progress`);
+      const url = limit 
+        ? `/api/velocity/${boardId}/progress?limit=${limit}`
+        : `/api/velocity/${boardId}/progress`;
+        
+      const eventSource = new EventSource(url);
       
       eventSource.onmessage = (event) => {
         try {
@@ -455,8 +577,9 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
         <div class="trend-summary grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div class="trend-card bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg">
             <h4 class="text-lg font-medium text-gray-900 mb-2">Velocity Trend</h4>
-            <div class="${getTrendColor(velocityData.trend)} text-2xl font-bold">
-              ${getTrendIcon(velocityData.trend)} ${velocityData.trend.charAt(0).toUpperCase() + velocityData.trend.slice(1)}
+            <div class="flex items-center space-x-2 ${getTrendColor(velocityData.trend)}">
+              <span class="text-4xl">${getTrendIcon(velocityData.trend)}</span>
+              <span class="text-2xl font-bold">${velocityData.trend.charAt(0).toUpperCase() + velocityData.trend.slice(1)}</span>
             </div>
             <p class="text-sm text-gray-600 mt-2">Based on ${velocityData.totalSprintsAnalyzed} closed sprints</p>
           </div>
@@ -502,12 +625,30 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
     `;
   }
   function createVelocityChartHTML(data: VelocityData): string {
-    const formatTrend = (trend: string) => {
+    const getTrendIcon = (trend: string) => {
       switch (trend) {
-        case 'increasing': return '📈 Increasing';
-        case 'decreasing': return '📉 Decreasing';
-        case 'stable': return '📊 Stable';
-        default: return '📊 Unknown';
+        case 'increasing': return '📈';
+        case 'decreasing': return '📉';
+        case 'stable': return '📊';
+        default: return '📊';
+      }
+    };
+    
+    const getTrendText = (trend: string) => {
+      switch (trend) {
+        case 'increasing': return 'Increasing';
+        case 'decreasing': return 'Decreasing';
+        case 'stable': return 'Stable';
+        default: return 'Unknown';
+      }
+    };
+    
+    const getTrendColor = (trend: string) => {
+      switch (trend) {
+        case 'increasing': return 'text-green-600';
+        case 'decreasing': return 'text-red-600';
+        case 'stable': return 'text-blue-600';
+        default: return 'text-gray-600';
       }
     };
     
@@ -533,7 +674,10 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
             <div class="text-sm text-blue-800">Average Velocity</div>
           </div>
           <div class="metric-card bg-green-50 p-4 rounded-lg">
-            <div class="text-sm font-medium text-green-800">${formatTrend(data.trend)}</div>
+            <div class="flex items-center space-x-2 ${getTrendColor(data.trend)}">
+              <span class="text-3xl">${getTrendIcon(data.trend)}</span>
+              <span class="text-xl font-bold">${getTrendText(data.trend)}</span>
+            </div>
             <div class="text-sm text-green-600">Trend</div>
           </div>
           <div class="metric-card bg-purple-50 p-4 rounded-lg">
@@ -614,7 +758,7 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
     
     try {
       // Try to use progress-enabled fetch first
-      const velocityData = await fetchVelocityDataWithProgress(boardId);
+              const velocityData = await fetchVelocityDataMultiStage(boardId);
       
       // Update all components with new data
       updateVelocityChart(velocityData);

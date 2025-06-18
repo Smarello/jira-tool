@@ -80,8 +80,9 @@ function getPredictabilityLabel(predictability: number): string {
                 <h4 class="text-lg font-medium text-gray-900 mb-2">
                   Velocity Trend
                 </h4>
-                <div class={`text-2xl font-bold ${getTrendColor(velocityData.trend)}`}>
-                  {getTrendIcon(velocityData.trend)} {velocityData.trend.charAt(0).toUpperCase() + velocityData.trend.slice(1)}
+                <div class={`flex items-center space-x-2 ${getTrendColor(velocityData.trend)}`}>
+                  <span class="text-4xl">{getTrendIcon(velocityData.trend)}</span>
+                  <span class="text-2xl font-bold">{velocityData.trend.charAt(0).toUpperCase() + velocityData.trend.slice(1)}</span>
                 </div>
                 <p class="text-sm text-gray-600 mt-2">
                   Based on last {Math.min(velocityData.closedSprints.length, 5)} closed sprints

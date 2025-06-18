@@ -26,9 +26,9 @@ export const CACHE_KEYS = {
 } as const;
 
 export const CACHE_TTL = {
-  SHORT: 5 * 60 * 1000, // 5 minutes
-  MEDIUM: 15 * 60 * 1000, // 15 minutes
-  LONG: 60 * 60 * 1000, // 1 hour
+  SHORT: 3 * 60 * 1000, // 3 minutes - For quick endpoint
+  MEDIUM: 5 * 60 * 1000, // 5 minutes - For batch endpoints
+  LONG: 15 * 60 * 1000, // 15 minutes - For summary data
 } as const;
 
 export const DEFAULT_PAGE_SIZE = 50 as const;
