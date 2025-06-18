@@ -7,7 +7,6 @@ import type { JiraIssueWithPoints } from '../jira/issues-api';
 import type { JiraSprint } from '../jira/boards.js';
 import type { AdvancedValidationResult } from './advanced-validator.js';
 import type { McpAtlassianClient } from '../mcp/atlassian.js';
-import { isIssueCompletedWithinSprint } from './date-validator.js';
 import { validateIssuesForVelocity, calculateValidatedStoryPoints } from './advanced-validator.js';
 
 /**
@@ -18,8 +17,8 @@ export interface SprintIssueDisplay extends JiraIssueWithPoints {
   readonly jiraUrl: string;
   readonly statusColor: string;
   readonly priorityColor: string;
-  readonly isClosedAfterSprintEnd: boolean;
-  readonly validationReason?: 'done_at_sprint_end' | 'not_valid';
+  readonly shouldShowWarning: boolean;
+  readonly warningReason?: string;
   readonly doneTransitionDate?: string;
 }
 
@@ -95,8 +94,56 @@ export function sortIssuesByUpdated(issues: readonly JiraIssueWithPoints[]): rea
 }
 
 /**
- * Transforms issues for modal display with advanced validation info
+ * Determines if an issue with story points should show warning
+ * SIMPLE LOGIC: Show warning ONLY if issue has story points AND is not valid for velocity
+ * Following Clean Code: Express intent, single responsibility
+ */
+export function getIssueValidationStatus(
+  issue: JiraIssueWithPoints,
+  validationResult: AdvancedValidationResult | undefined,
+  sprint: JiraSprint
+): { shouldShowWarning: boolean; warningReason?: string } {
+  // Step 1: Must have story points
+  if (!issue.storyPoints || issue.storyPoints <= 0) {
+    return { shouldShowWarning: false };
+  }
+
+  // Step 2: Must have validation result indicating NOT valid
+  if (!validationResult || validationResult.isValidForVelocity === true) {
+    return { shouldShowWarning: false };
+  }
+
+  // Step 3: Issue has story points but is NOT valid for velocity - show warning
+  // Determine the specific reason based on validation data
+  if (!validationResult.doneTransitionDate) {
+    return {
+      shouldShowWarning: true,
+      warningReason: "Issue con story points mai spostata nella colonna Done"
+    };
+  }
+
+  // Check if moved to Done after sprint end
+  const transitionDate = new Date(validationResult.doneTransitionDate);
+  const sprintEndDate = new Date(sprint.endDate);
+  
+  if (transitionDate > sprintEndDate) {
+    return {
+      shouldShowWarning: true,
+      warningReason: "Issue completata dopo la fine dello sprint"
+    };
+  }
+
+  // Issue has Done transition but still not valid (shouldn't happen normally)
+  return {
+    shouldShowWarning: true,
+    warningReason: "Issue con story points non valida per la velocity"
+  };
+}
+
+/**
+ * Transforms issues for modal display
  * Following Clean Code: Compose operations, immutability
+ * FIXED: Map validation results BEFORE sorting to maintain index alignment
  */
 export function transformIssuesForDisplay(
   issues: readonly JiraIssueWithPoints[],
@@ -104,34 +151,30 @@ export function transformIssuesForDisplay(
   validationResults?: readonly AdvancedValidationResult[],
   baseUrl?: string
 ): readonly SprintIssueDisplay[] {
-  const sortedIssues = sortIssuesByUpdated(issues);
-  
-  return sortedIssues.map((issue, index) => ({
-    ...issue,
-    jiraUrl: generateJiraIssueUrl(issue.key, baseUrl),
-    statusColor: getStatusColor(issue.status.name),
-    priorityColor: getPriorityColor(issue.priority.name),
-    isClosedAfterSprintEnd: isIssueClosedAfterSprintEnd(issue, sprint),
-    validationReason: validationResults?.[index]?.reason,
-    doneTransitionDate: validationResults?.[index]?.doneTransitionDate
-  }));
-}
+  // First, map issues with validation results (maintaining original order/indices)
+  const issuesWithValidation = issues.map((issue, index) => {
+    const validationResult = validationResults?.[index];
+    const validationStatus = getIssueValidationStatus(issue, validationResult, sprint);
+    
 
-/**
- * Determines if an issue was closed after sprint end
- * Following Clean Code: Express intent, single responsibility
- */
-function isIssueClosedAfterSprintEnd(issue: JiraIssueWithPoints, sprint: JiraSprint): boolean {
-  // Issue must have a status category changed date
-  if (!issue.statusCategoryChangedDate) {
-    return false;
-  }
+    
+    return {
+      ...issue,
+      jiraUrl: generateJiraIssueUrl(issue.key, baseUrl),
+      statusColor: getStatusColor(issue.status.name),
+      priorityColor: getPriorityColor(issue.priority.name),
+      shouldShowWarning: validationStatus.shouldShowWarning,
+      warningReason: validationStatus.warningReason,
+      doneTransitionDate: validationResult?.doneTransitionDate,
+    };
+  });
   
-  // Check if status changed date is after sprint end date
-  const statusChangedDate = new Date(issue.statusCategoryChangedDate);
-  const sprintEndDate = new Date(sprint.endDate);
-  
-  return statusChangedDate > sprintEndDate;
+  // Then sort by updated date (most recent first)
+  return issuesWithValidation.sort((a, b) => {
+    const dateA = new Date(a.updated);
+    const dateB = new Date(b.updated);
+    return dateB.getTime() - dateA.getTime();
+  });
 }
 
 /**

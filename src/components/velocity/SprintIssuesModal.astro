@@ -174,8 +174,8 @@ function formatSprintDateRange(startDate: string, endDate: string, completeDate?
     jiraUrl: string;
     statusColor: string;
     priorityColor: string;
-    isClosedAfterSprintEnd: boolean;
-    validationReason?: 'done_at_sprint_end' | 'not_valid';
+    shouldShowWarning: boolean;
+    warningReason?: string;
     doneTransitionDate?: string;
   }
   
@@ -267,47 +267,7 @@ function formatSprintDateRange(startDate: string, endDate: string, completeDate?
     }
   }
   
-  /**
-   * Generates validation indicator for an issue
-   * Following Clean Code: Express intent, single responsibility
-   */
-  function generateValidationIndicator(issue: SprintIssue): string {
-    if (issue.validationReason === 'done_at_sprint_end') {
-      // Issue was in Done column at sprint end
-      const tooltipText = issue.isClosedAfterSprintEnd 
-        ? `Issue was in Done column at sprint end but closed later${issue.doneTransitionDate ? ` (moved to Done ${formatDateForDisplay(issue.doneTransitionDate)})` : ''}`
-        : `Issue was in Done column at sprint end${issue.doneTransitionDate ? ` (moved to Done ${formatDateForDisplay(issue.doneTransitionDate)})` : ''}`;
-      
-      const iconColor = issue.isClosedAfterSprintEnd ? 'text-blue-500' : 'text-green-500';
-      
-      return `
-        <div class="relative group">
-          <svg class="w-4 h-4 ${iconColor} cursor-help" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-          </svg>
-          <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-sm text-white bg-gray-900 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
-            ${tooltipText}
-            <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-          </div>
-        </div>
-      `;
-    } else if (issue.isClosedAfterSprintEnd) {
-      // Issue was closed after sprint end and not counted
-      return `
-        <div class="relative group">
-          <svg class="w-4 h-4 text-orange-500 cursor-help" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-          </svg>
-          <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-sm text-white bg-gray-900 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
-            Issue closed after sprint end and not in Done column
-            <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-          </div>
-        </div>
-      `;
-    }
-    
-    return '';
-  }
+
   
   /**
    * Renders issues table for desktop
@@ -320,7 +280,7 @@ function formatSprintDateRange(startDate: string, endDate: string, completeDate?
     tbody.innerHTML = issues.map(issue => `
       <tr class="hover:bg-gray-50 transition-colors duration-150">
         <td class="px-6 py-4 whitespace-nowrap">
-          <div class="flex items-center space-x-2">
+          <div class="flex items-center gap-2">
             <a 
               href="${issue.jiraUrl}" 
               target="_blank" 
@@ -329,7 +289,17 @@ function formatSprintDateRange(startDate: string, endDate: string, completeDate?
             >
               ${issue.key}
             </a>
-            ${generateValidationIndicator(issue)}
+            ${issue.shouldShowWarning ? `
+              <div class="relative inline-block">
+                <span 
+                  class="completion-warning-icon text-orange-500 cursor-help"
+                  title="Issue non inclusa nel calcolo della velocity"
+                  data-tooltip="${issue.warningReason || 'Issue non valida per il calcolo della velocity'}"
+                >
+                  ⚠️
+                </span>
+              </div>
+            ` : ''}
           </div>
         </td>
         <td class="px-6 py-4">
@@ -365,7 +335,7 @@ function formatSprintDateRange(startDate: string, endDate: string, completeDate?
     container.innerHTML = issues.map(issue => `
       <div class="p-4 border-b border-gray-200 last:border-b-0">
         <div class="flex items-start justify-between mb-2">
-          <div class="flex items-center space-x-2">
+          <div class="flex items-center gap-2">
             <a 
               href="${issue.jiraUrl}" 
               target="_blank" 
@@ -374,7 +344,17 @@ function formatSprintDateRange(startDate: string, endDate: string, completeDate?
             >
               ${issue.key}
             </a>
-            ${generateValidationIndicator(issue)}
+            ${issue.shouldShowWarning ? `
+              <div class="relative inline-block">
+                <span 
+                  class="completion-warning-icon text-orange-500 cursor-help text-sm"
+                  title="Issue non inclusa nel calcolo della velocity"
+                  data-tooltip="${issue.warningReason || 'Issue non valida per il calcolo della velocity'}"
+                >
+                  ⚠️
+                </span>
+              </div>
+            ` : ''}
           </div>
           <span class="px-2 py-1 text-xs font-medium rounded-full ${issue.statusColor}">
             ${issue.status.name}
@@ -401,6 +381,9 @@ function formatSprintDateRange(startDate: string, endDate: string, completeDate?
     
     renderIssuesTable(data.issues);
     renderIssuesMobile(data.issues);
+    
+    // Initialize tooltips after rendering
+    setTimeout(() => initializeTooltips(), 0);
     
     document.getElementById('issues-table-container')?.classList.remove('hidden');
     document.getElementById('issues-loading')?.classList.add('hidden');
@@ -543,9 +526,53 @@ function formatSprintDateRange(startDate: string, endDate: string, completeDate?
     (window as any).hideModal();
   }
   
+  /**
+   * Initializes enhanced tooltips for completion warning icons
+   * Following Clean Code: Single responsibility, event handling
+   */
+  function initializeTooltips() {
+    // Remove any existing tooltips
+    document.querySelectorAll('.completion-tooltip').forEach(tooltip => tooltip.remove());
+    
+    const warningIcons = document.querySelectorAll('.completion-warning-icon');
+    
+    warningIcons.forEach(icon => {
+      const tooltipText = icon.getAttribute('data-tooltip');
+      if (!tooltipText) return;
+      
+      let tooltip: HTMLElement | null = null;
+      
+      icon.addEventListener('mouseenter', () => {
+        // Create tooltip
+        tooltip = document.createElement('div');
+        tooltip.className = 'completion-tooltip absolute z-50 px-2 py-1 text-xs text-white bg-gray-800 rounded shadow-lg pointer-events-none whitespace-nowrap';
+        tooltip.textContent = tooltipText;
+        tooltip.style.bottom = '100%';
+        tooltip.style.left = '50%';
+        tooltip.style.transform = 'translateX(-50%)';
+        tooltip.style.marginBottom = '4px';
+        
+        // Position tooltip relative to icon
+        const iconRect = icon.getBoundingClientRect();
+        const iconParent = icon.closest('.relative') || icon.parentElement;
+        if (iconParent) {
+          iconParent.appendChild(tooltip);
+        }
+      });
+      
+      icon.addEventListener('mouseleave', () => {
+        if (tooltip) {
+          tooltip.remove();
+          tooltip = null;
+        }
+      });
+    });
+  }
+  
   // Make functions available globally
   (window as any).loadSprintIssues = loadSprintIssues;
   (window as any).closeSprintModal = closeSprintModal;
+  (window as any).initializeTooltips = initializeTooltips;
 </script>
 
 <style>
@@ -564,5 +591,31 @@ function formatSprintDateRange(startDate: string, endDate: string, completeDate?
     .sprint-info .grid {
       @apply grid-cols-1 gap-2;
     }
+  }
+  
+  /* Completion warning icon styles */
+  .completion-warning-icon {
+    @apply transition-all duration-200;
+  }
+  
+  .completion-warning-icon:hover {
+    @apply transform scale-110;
+  }
+  
+  /* Enhanced tooltip styles */
+  .completion-tooltip {
+    max-width: 200px;
+    z-index: 9999;
+  }
+  
+  .completion-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -4px;
+    border-width: 4px;
+    border-style: solid;
+    border-color: #374151 transparent transparent transparent;
   }
 </style> 
