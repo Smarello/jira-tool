@@ -1,0 +1,27 @@
+{
+  "name": "jira-tool",
+  "version": "1.0.0",
+  "type": "module",
+  "workspaces": [
+    "src/lib/database",
+    "src/lib/jira-api",
+    "src/lib/velocity"
+  ],
+  "dependencies": {
+    "astro": "^4.0.0",
+    "@jira-tool/database": "workspace:*",
+    "@jira-tool/jira-api": "workspace:*",
+    "@jira-tool/velocity": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "drizzle-kit": "^0.20.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "db:generate": "npm run db:generate --workspace=@jira-tool/database",
+    "db:migrate": "npm run db:migrate --workspace=@jira-tool/database",
+    "db:studio": "npm run db:studio --workspace=@jira-tool/database"
+  }
+}

@@ -6,12 +6,13 @@
 import type { APIRoute } from 'astro';
 import { getMcpAtlassianClient } from '../../../lib/mcp/atlassian';
 import { calculateRealSprintsVelocity } from '../../../lib/velocity/calculator';
-import { 
+import {
   createEnhancedVelocityData,
-  type SprintVelocity 
+  type SprintVelocity
 } from '../../../lib/velocity/mock-calculator';
+import { getVelocityCacheService } from '../../../lib/services/velocity-cache-service';
 
-export const GET: APIRoute = async ({ params }) => {
+export const GET: APIRoute = async ({ params, request }) => {
   const boardId = params.boardId;
   
   // Validate required parameter
@@ -30,6 +31,12 @@ export const GET: APIRoute = async ({ params }) => {
   try {
     // Use MCP client for consistent API
     const mcpClient = getMcpAtlassianClient();
+    const velocityCacheService = getVelocityCacheService();
+
+    // Check for force refresh parameter
+    const url = new URL(request.url);
+    const forceRefresh = url.searchParams.get('refresh') === 'true';
+
     const sprintsResponse = await mcpClient.getBoardSprints(boardId);
     
     // Handle Kanban boards that don't have sprints
@@ -71,24 +78,39 @@ export const GET: APIRoute = async ({ params }) => {
     const boardResponse = await mcpClient.getBoardInfo(boardId);
     const boardName = boardResponse.success ? boardResponse.data.name : `Board ${boardId}`;
 
-    // Calculate real velocity using actual Jira issues data
+    // Get velocity data with intelligent caching
     const issuesApi = mcpClient.getIssuesApi();
-    const sprintVelocities = await calculateRealSprintsVelocity(sprintsResponse.data, issuesApi, mcpClient);
+    const cachedVelocityData = await velocityCacheService.getVelocityData(
+      boardId,
+      sprintsResponse.data,
+      issuesApi,
+      mcpClient,
+      forceRefresh
+    );
 
+    // Create enhanced velocity data for response
     const velocityData = createEnhancedVelocityData(
       boardId,
       boardName,
-      sprintVelocities
+      cachedVelocityData.velocities
     );
 
     return new Response(
       JSON.stringify({
         ...velocityData,
+        fromCache: cachedVelocityData.fromCache,
+        cacheAge: cachedVelocityData.cacheAge,
+        lastUpdated: cachedVelocityData.lastUpdated,
         timestamp: new Date().toISOString()
       }),
-      { 
-        status: 200, 
-        headers: { 'Content-Type': 'application/json' } 
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': cachedVelocityData.fromCache
+            ? 'public, max-age=3600, stale-while-revalidate=300'
+            : 'public, max-age=300'
+        }
       }
     );
   } catch (error) {

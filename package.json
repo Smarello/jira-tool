@@ -3,25 +3,40 @@
   "type": "module",
   "version": "0.0.1",
   "description": "Jira Tool Analytics Dashboard",
+  "dependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@astrojs/node": "^9.2.2",
+    "@astrojs/tailwind": "^5.1.4",
+    "@astrojs/vercel": "^8.1.5",
+    "@libsql/client": "^0.15.9",
+    "astro": "^5.9.3",
+    "dotenv": "^16.5.0",
+    "drizzle-orm": "^0.44.2",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.1",
+    "tsx": "^4.20.3"
+  },
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
     "start": "node ./dist/server/entry.mjs",
     "astro": "astro",
-    "type-check": "astro check"
-  },
-  "dependencies": {
-    "@astrojs/check": "^0.9.4",
-    "@astrojs/node": "^9.2.2",
-    "@astrojs/tailwind": "^5.1.4",
-    "@astrojs/vercel": "^8.1.5",
-    "astro": "^5.9.3",
-    "dotenv": "^16.5.0",
-    "tailwindcss": "^3.4.16",
-    "typescript": "^5.8.3"
-  },
-  "devDependencies": {
-    "tsx": "^4.20.3"
+    "type-check": "astro check",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "db:push": "drizzle-kit push",
+    "db:introspect": "drizzle-kit introspect",
+    "db:check": "drizzle-kit check",
+    "db:up": "drizzle-kit up",
+    "db:setup:turso": "node scripts/setup-turso.js",
+    "db:test:config": "node scripts/test-drizzle-config.js",
+    "db:test:simple": "node scripts/simple-config-test.js",
+    "test:db": "node scripts/test-database-integration.js",
+    "test:db:dev": "TEST_BASE_URL=http://localhost:4321 node scripts/test-database-integration.js"
   }
 }

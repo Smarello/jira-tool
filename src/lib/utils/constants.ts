@@ -10,8 +10,10 @@ export const API_ENDPOINTS = {
   JIRA_HEALTH: '/api/health/jira',
   VELOCITY_BOARDS: '/api/velocity/boards',
   VELOCITY_DATA: '/api/velocity',
+  VELOCITY_CACHE: '/api/velocity/{boardId}/cache',
   ANALYTICS: '/api/jira/analytics',
   PROJECT_METRICS: '/api/jira/project',
+  DATABASE_STATS: '/api/database/stats',
   CACHE_DEBUG: '/api/debug/cache',
   FIELDS_DEBUG: '/api/debug/fields',
   PERFORMANCE_TEST: '/api/debug/performance-test',
@@ -20,9 +22,11 @@ export const API_ENDPOINTS = {
 export const CACHE_KEYS = {
   BOARDS: 'jira:boards',
   VELOCITY: 'velocity:',
+  VELOCITY_DB: 'velocity:db:',
   ANALYTICS: 'analytics:',
   PROJECT_METRICS: 'project:',
   HEALTH: 'health:jira',
+  DATABASE: 'database:',
 } as const;
 
 export const CACHE_TTL = {

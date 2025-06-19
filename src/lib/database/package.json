@@ -1,0 +1,24 @@
+{
+  "name": "@jira-tool/database",
+  "version": "1.0.0",
+  "description": "Database layer with repository pattern for JIRA sprint data persistence",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "drizzle-orm": "^0.29.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.20.0"
+  },
+  "peerDependencies": {
+    "@libsql/client": "^0.4.0",
+    "postgres": "^3.4.0",
+    "mysql2": "^3.6.0"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "db:push": "drizzle-kit push"
+  }
+}
