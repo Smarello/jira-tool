@@ -6,13 +6,16 @@
 
 import type { APIRoute } from 'astro';
 import { getMcpAtlassianClient } from '../../../../lib/mcp/atlassian';
-import { calculateRealSprintsVelocity } from '../../../../lib/velocity/calculator';
-import { 
-  createEnhancedVelocityData,
-  type SprintVelocity 
-} from '../../../../lib/velocity/mock-calculator';
+import {
+  calculateRealSprintsVelocityWithIssues
+} from '../../../../lib/velocity/calculator';
 import { getCachedData, setCachedData } from '../../../../lib/utils/cache';
 import { CACHE_TTL } from '../../../../lib/utils/constants';
+import { initializeDatabaseService } from '../../../../lib/database';
+
+// Load environment variables explicitly for Astro
+import { config } from 'dotenv';
+config();
 
 export const GET: APIRoute = async ({ params, url }) => {
   const boardId = params.boardId;
@@ -149,13 +152,110 @@ export const GET: APIRoute = async ({ params, url }) => {
     const boardResponse = await mcpClient.getBoardInfo(boardId);
     const boardName = boardResponse.success ? boardResponse.data.name : `Board ${boardId}`;
 
-    // Calculate velocity for safe batch
+    // Calculate velocity for safe batch with issues data
     const issuesApi = mcpClient.getIssuesApi();
-    const sprintVelocities = await calculateRealSprintsVelocity(
+    const batchResult = await calculateRealSprintsVelocityWithIssues(
       safeBatchSprints,
       issuesApi,
       mcpClient
     );
+
+    const sprintVelocities = batchResult.velocities;
+
+    // Persist closed sprints to database
+    // Following Clean Code: Single responsibility, robust error handling
+    let persistenceResults: { success: boolean; successful: number; failed: number; error?: string } | null = null;
+    let persistenceError = null;
+
+    console.log('[Batch] Starting database persistence process...');
+
+    try {
+      console.log('[Batch] Initializing database service...');
+      const databaseService = await initializeDatabaseService();
+      console.log('[Batch] Database service initialized successfully');
+
+      // Prepare data for batch persistence (only closed sprints)
+      console.log('[Batch] Filtering closed sprints from batch...');
+      console.log('[Batch] Total sprints in batch:', safeBatchSprints.length);
+      console.log('[Batch] Sprint states:', safeBatchSprints.map(s => `${s.name}: ${s.state}`));
+
+      const closedSprintsWithIssues = safeBatchSprints
+        .filter(sprint => sprint.state === 'closed')
+        .map(sprint => ({
+          sprint,
+          issues: batchResult.sprintIssuesMap.get(sprint.id) || []
+        }));
+
+      console.log('[Batch] Closed sprints found:', closedSprintsWithIssues.length);
+
+      if (closedSprintsWithIssues.length > 0) {
+        console.log(`[Batch] Persisting ${closedSprintsWithIssues.length} closed sprints to database`);
+
+        // Create velocity data map for persistence
+        const velocityDataMap = new Map();
+        sprintVelocities.forEach(velocity => {
+          if (velocity.sprint.state === 'closed') {
+            velocityDataMap.set(velocity.sprint.id, {
+              sprintId: velocity.sprint.id,
+              committedPoints: velocity.committedPoints,
+              completedPoints: velocity.completedPoints,
+              issuesCount: batchResult.sprintIssuesMap.get(velocity.sprint.id)?.length || 0,
+              completedIssuesCount: velocity.velocityPoints > 0 ?
+                Math.round(velocity.velocityPoints / velocity.completedPoints *
+                  (batchResult.sprintIssuesMap.get(velocity.sprint.id)?.length || 0)) : 0,
+              cycleTime: 0, // Will be calculated by persistence service
+              averageLeadTime: 0 // Will be calculated by persistence service
+            });
+          }
+        });
+
+        // Persist to database with timeout (non-blocking - don't fail the response if DB fails)
+        const persistencePromise = databaseService.saveClosedSprintsBatch(
+          closedSprintsWithIssues,
+          velocityDataMap
+        );
+
+        // Add timeout to prevent database operations from blocking the response
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Database persistence timeout (10s)')), 10000);
+        });
+
+        try {
+          const result = await Promise.race([persistencePromise, timeoutPromise]);
+          persistenceResults = result as { success: boolean; successful: number; failed: number; error?: string };
+          console.log(`[Batch] Database persistence completed successfully:`, {
+            successful: persistenceResults.successful,
+            failed: persistenceResults.failed,
+            success: persistenceResults.success
+          });
+        } catch (timeoutOrDbError) {
+          persistenceError = timeoutOrDbError instanceof Error ? timeoutOrDbError.message : 'Database operation failed';
+          console.warn('[Batch] Database persistence failed or timed out:', persistenceError);
+
+          persistenceResults = {
+            success: false,
+            error: persistenceError,
+            successful: 0,
+            failed: closedSprintsWithIssues.length
+          };
+        }
+      } else {
+        console.log('[Batch] No closed sprints to persist to database');
+        console.log('[Batch] This means either:');
+        console.log('[Batch] 1. No sprints in the batch are in "closed" state');
+        console.log('[Batch] 2. All sprints are "active" or "future"');
+      }
+    } catch (initError) {
+      persistenceError = initError instanceof Error ? initError.message : 'Database service initialization failed';
+      console.warn('[Batch] Database service initialization failed:', persistenceError);
+
+      persistenceResults = {
+        success: false,
+        error: persistenceError,
+        successful: 0,
+        failed: safeBatchSprints.filter(sprint => sprint.state === 'closed').length
+      };
+    }
 
     // Create batch data structure
     const result = {
@@ -164,9 +264,9 @@ export const GET: APIRoute = async ({ params, url }) => {
       sprints: sprintVelocities,
       batch: {
         requested: { start, end },
-        actual: { 
-          start, 
-          end: start + safeBatchSprints.length 
+        actual: {
+          start,
+          end: start + safeBatchSprints.length
         },
         sprintsInBatch: safeBatchSprints.length,
         totalSprints: allSprints.length,
@@ -188,20 +288,30 @@ export const GET: APIRoute = async ({ params, url }) => {
           percentage: Math.round(((start + safeBatchSprints.length) / allSprints.length) * 100)
         }
       },
+      // Add database persistence info to response
+      database: persistenceResults ? {
+        persistedSprints: persistenceResults.successful || 0,
+        failedSprints: persistenceResults.failed || 0,
+        success: persistenceResults.success || false
+      } : null,
       timestamp: new Date().toISOString()
     };
+
+    // Log final result for debugging
+    console.log('[Batch] Final response database info:', result.database);
+    console.log('[Batch] Persistence results summary:', persistenceResults);
 
     // Cache the result
     setCachedData(cacheKey, result, CACHE_TTL.MEDIUM);
 
     return new Response(
       JSON.stringify(result),
-      { 
-        status: 200, 
-        headers: { 
+      {
+        status: 200,
+        headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 'public, max-age=300, stale-while-revalidate=60'
-        } 
+        }
       }
     );
 

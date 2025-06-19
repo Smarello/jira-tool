@@ -71,7 +71,7 @@ export const GET: APIRoute = async ({ params }) => {
 
 export const POST: APIRoute = async ({ params, request }) => {
   const boardId = params.boardId;
-  
+
   if (!boardId || typeof boardId !== 'string') {
     return new Response(
       JSON.stringify({ error: 'Board ID is required' }),
@@ -82,25 +82,10 @@ export const POST: APIRoute = async ({ params, request }) => {
   try {
     const mcpClient = getMcpAtlassianClient();
     const velocityCacheService = getVelocityCacheService();
-    
-    // Get sprints for the board
-    const sprintsResponse = await mcpClient.getBoardSprints(boardId);
-    
-    if (!sprintsResponse.success) {
-      return new Response(
-        JSON.stringify({ 
-          error: sprintsResponse.error || 'Failed to fetch sprints' 
-        }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
 
-    // Force refresh velocity data and update cache
-    const issuesApi = mcpClient.getIssuesApi();
-    const refreshedData = await velocityCacheService.refreshVelocityData(
+    // Force refresh: fetch from JIRA and update cache
+    const refreshedData = await velocityCacheService.fetchAndCacheClosedSprintsData(
       boardId,
-      sprintsResponse.data,
-      issuesApi,
       mcpClient
     );
 
@@ -111,17 +96,18 @@ export const POST: APIRoute = async ({ params, request }) => {
         refreshed: true,
         totalSprints: refreshedData.totalSprints,
         lastUpdated: refreshedData.lastUpdated,
-        velocitiesCount: refreshedData.velocities.length
+        velocitiesCount: refreshedData.velocities.length,
+        fromCache: false
       }),
-      { 
-        status: 200, 
-        headers: { 'Content-Type': 'application/json' } 
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
       }
     );
 
   } catch (error) {
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: 'Failed to refresh cache',
         details: error instanceof Error ? error.message : 'Unknown error'
       }),

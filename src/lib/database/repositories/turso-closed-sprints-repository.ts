@@ -33,6 +33,7 @@ export class TursoClosedSprintsRepository implements IClosedSprintsRepository {
   async saveSprint(data: CreateSprintData): Promise<void> {
     try {
       const { sprint, velocityData, metricsData, issuesData } = data;
+      console.error(`----> saving sprint ${sprint.id}`, sprint);
       
       await this.db.insert(closedSprints).values({
         id: sprint.id,

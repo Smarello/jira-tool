@@ -132,7 +132,7 @@ export class SprintPersistenceService {
 
   /**
    * Persists multiple closed sprints in batch
-   * Following Clean Code: Batch operations for efficiency
+   * Following Clean Code: Batch operations for efficiency, conditional persistence
    */
   async persistClosedSprintsBatch(
     sprintsWithIssues: readonly { sprint: JiraSprint; issues: readonly JiraIssueWithPoints[] }[],
@@ -146,15 +146,55 @@ export class SprintPersistenceService {
     // Filter only closed sprints
     const closedSprints = sprintsWithIssues.filter(item => item.sprint.state === 'closed');
 
-    // Process in batches
-    for (let i = 0; i < closedSprints.length; i += this.config.batchSize) {
-      const batch = closedSprints.slice(i, i + this.config.batchSize);
-      
+    // Check which sprints already exist (batch existence check)
+    const existingSprintIds = new Set<string>();
+    for (const item of closedSprints) {
+      try {
+        const exists = await this.sprintsRepository.sprintExists(item.sprint.id);
+        if (exists) {
+          existingSprintIds.add(item.sprint.id);
+          results.push({
+            success: false,
+            sprintId: item.sprint.id,
+            error: 'Sprint already exists in database'
+          });
+          failed++;
+        }
+      } catch (error) {
+        results.push({
+          success: false,
+          sprintId: item.sprint.id,
+          error: `Failed to check sprint existence: ${error instanceof Error ? error.message : 'Unknown error'}`
+        });
+        failed++;
+      }
+    }
+
+    // Filter out existing sprints
+    const newSprints = closedSprints.filter(item => !existingSprintIds.has(item.sprint.id));
+
+    if (newSprints.length === 0) {
+      console.log('[SprintPersistence] No new sprints to persist');
+      return {
+        totalProcessed: closedSprints.length,
+        successful,
+        failed,
+        results,
+        errors
+      };
+    }
+
+    console.log(`[SprintPersistence] Persisting ${newSprints.length} new sprints (${existingSprintIds.size} already exist)`);
+
+    // Process new sprints in batches
+    for (let i = 0; i < newSprints.length; i += this.config.batchSize) {
+      const batch = newSprints.slice(i, i + this.config.batchSize);
+
       try {
         // Prepare batch data
         const batchData: CreateSprintData[] = batch.map(item => {
           const velocityData = velocityDataMap?.get(item.sprint.id);
-          const metricsData = this.config.enableMetricsCalculation 
+          const metricsData = this.config.enableMetricsCalculation
             ? this.calculateSprintMetrics(item.sprint, item.issues, velocityData)
             : undefined;
 
@@ -177,7 +217,7 @@ export class SprintPersistenceService {
               issuesMap.set(item.sprint.id, item.issues);
             }
           });
-          
+
           if (issuesMap.size > 0) {
             await this.issuesRepository.saveSprintIssuesBatch(issuesMap);
           }
@@ -196,7 +236,7 @@ export class SprintPersistenceService {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Batch processing failed';
         errors.push(`Batch ${i / this.config.batchSize + 1}: ${errorMessage}`);
-        
+
         // Mark batch items as failed
         batch.forEach(item => {
           results.push({
@@ -313,7 +353,9 @@ export class SprintPersistenceService {
   }
 
   private calculateDefectRate(issues: readonly JiraIssueWithPoints[]): number {
-    const bugs = issues.filter(issue => issue.issueType.toLowerCase() === 'bug');
+    const bugs = issues.filter(issue =>
+      issue.issueType?.name?.toLowerCase() === 'bug'
+    );
     return issues.length === 0 ? 0 : (bugs.length / issues.length) * 100;
   }
 

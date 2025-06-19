@@ -218,11 +218,12 @@ export class SprintEntity {
    * Following Clean Code: Express intent, filtering
    */
   get completedIssues(): readonly JiraIssueWithPoints[] {
-    return this.issues.filter(issue => 
-      issue.status.toLowerCase().includes('done') || 
-      issue.status.toLowerCase().includes('closed') ||
-      issue.status.toLowerCase().includes('resolved')
-    );
+    return this.issues.filter(issue => {
+      const statusName = typeof issue.status === 'string' ? issue.status : issue.status?.name || '';
+      return statusName.toLowerCase().includes('done') ||
+             statusName.toLowerCase().includes('closed') ||
+             statusName.toLowerCase().includes('resolved');
+    });
   }
 
   /**

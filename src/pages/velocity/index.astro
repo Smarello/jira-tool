@@ -167,7 +167,7 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
     try {
       // Import multi-stage loader dynamically
       const { loadVelocityDataMultiStage } = await import('../../lib/velocity/multi-stage-loader');
-      
+
       // Configure for Vercel limitations
       const config = {
         maxIssuesPerBatch: 150,
@@ -175,7 +175,7 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
         enableParallelBatches: false,
         stageTimeoutMs: 45000
       };
-      
+
       // Progress callback for UI updates
       const onProgress = (progress: any) => {
         console.log(`[${progress.stage}] ${progress.percentage}%: ${progress.message}`);
@@ -187,7 +187,7 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
           percentage: progress.percentage
         });
       };
-      
+
       // Load data with progress tracking
       const combinedData = await loadVelocityDataMultiStage(boardId, config, onProgress);
       

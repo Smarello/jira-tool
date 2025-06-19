@@ -35,10 +35,10 @@ export class TursoSprintIssuesRepository implements ISprintIssuesRepository {
         issueKey: issue.key,
         issueId: issue.id,
         summary: issue.summary,
-        status: issue.status,
-        issueType: issue.issueType,
+        status: typeof issue.status === 'string' ? issue.status : issue.status?.name || 'Unknown',
+        issueType: typeof issue.issueType === 'string' ? issue.issueType : issue.issueType?.name || 'Unknown',
         storyPoints: issue.storyPoints || null,
-        assignee: issue.assignee || null,
+        assignee: typeof issue.assignee === 'string' ? issue.assignee : issue.assignee?.displayName || null,
         created: issue.created,
         updated: issue.updated,
         resolved: issue.resolved || null,
@@ -80,10 +80,10 @@ export class TursoSprintIssuesRepository implements ISprintIssuesRepository {
           issueKey: issue.key,
           issueId: issue.id,
           summary: issue.summary,
-          status: issue.status,
-          issueType: issue.issueType,
+          status: typeof issue.status === 'string' ? issue.status : issue.status?.name || 'Unknown',
+          issueType: typeof issue.issueType === 'string' ? issue.issueType : issue.issueType?.name || 'Unknown',
           storyPoints: issue.storyPoints || null,
-          assignee: issue.assignee || null,
+          assignee: typeof issue.assignee === 'string' ? issue.assignee : issue.assignee?.displayName || null,
           created: issue.created,
           updated: issue.updated,
           resolved: issue.resolved || null,
@@ -222,19 +222,21 @@ export class TursoSprintIssuesRepository implements ISprintIssuesRepository {
       const issues = await this.getSprintIssues(sprintId);
       
       const totalIssues = issues.length;
-      const completedIssues = issues.filter(issue => 
-        issue.status.toLowerCase().includes('done') || 
-        issue.status.toLowerCase().includes('closed') ||
-        issue.status.toLowerCase().includes('resolved')
-      ).length;
-      
+      const completedIssues = issues.filter(issue => {
+        const statusName = typeof issue.status === 'string' ? issue.status : issue.status?.name || '';
+        return statusName.toLowerCase().includes('done') ||
+               statusName.toLowerCase().includes('closed') ||
+               statusName.toLowerCase().includes('resolved');
+      }).length;
+
       const totalStoryPoints = issues.reduce((sum, issue) => sum + (issue.storyPoints || 0), 0);
       const completedStoryPoints = issues
-        .filter(issue => 
-          issue.status.toLowerCase().includes('done') || 
-          issue.status.toLowerCase().includes('closed') ||
-          issue.status.toLowerCase().includes('resolved')
-        )
+        .filter(issue => {
+          const statusName = typeof issue.status === 'string' ? issue.status : issue.status?.name || '';
+          return statusName.toLowerCase().includes('done') ||
+                 statusName.toLowerCase().includes('closed') ||
+                 statusName.toLowerCase().includes('resolved');
+        })
         .reduce((sum, issue) => sum + (issue.storyPoints || 0), 0);
 
       const averageStoryPoints = totalIssues > 0 ? totalStoryPoints / totalIssues : 0;
@@ -242,20 +244,22 @@ export class TursoSprintIssuesRepository implements ISprintIssuesRepository {
       // Group by type
       const issuesByType: Record<string, number> = {};
       issues.forEach(issue => {
-        issuesByType[issue.issueType] = (issuesByType[issue.issueType] || 0) + 1;
+        const typeName = typeof issue.issueType === 'string' ? issue.issueType : issue.issueType?.name || 'Unknown';
+        issuesByType[typeName] = (issuesByType[typeName] || 0) + 1;
       });
 
       // Group by status
       const issuesByStatus: Record<string, number> = {};
       issues.forEach(issue => {
-        issuesByStatus[issue.status] = (issuesByStatus[issue.status] || 0) + 1;
+        const statusName = typeof issue.status === 'string' ? issue.status : issue.status?.name || 'Unknown';
+        issuesByStatus[statusName] = (issuesByStatus[statusName] || 0) + 1;
       });
 
       // Group by assignee
       const issuesByAssignee: Record<string, number> = {};
       issues.forEach(issue => {
-        const assignee = issue.assignee || 'Unassigned';
-        issuesByAssignee[assignee] = (issuesByAssignee[assignee] || 0) + 1;
+        const assigneeName = typeof issue.assignee === 'string' ? issue.assignee : issue.assignee?.displayName || 'Unassigned';
+        issuesByAssignee[assigneeName] = (issuesByAssignee[assigneeName] || 0) + 1;
       });
 
       return {
@@ -306,10 +310,10 @@ export class TursoSprintIssuesRepository implements ISprintIssuesRepository {
         .update(sprintIssues)
         .set({
           summary: issue.summary,
-          status: issue.status,
-          issueType: issue.issueType,
+          status: typeof issue.status === 'string' ? issue.status : issue.status?.name || 'Unknown',
+          issueType: typeof issue.issueType === 'string' ? issue.issueType : issue.issueType?.name || 'Unknown',
           storyPoints: issue.storyPoints || null,
-          assignee: issue.assignee || null,
+          assignee: typeof issue.assignee === 'string' ? issue.assignee : issue.assignee?.displayName || null,
           updated: issue.updated,
           resolved: issue.resolved || null,
           updatedAt: new Date().toISOString(),
@@ -413,10 +417,14 @@ export class TursoSprintIssuesRepository implements ISprintIssuesRepository {
       id: entity.issueId,
       key: entity.issueKey,
       summary: entity.summary,
-      status: entity.status,
-      issueType: entity.issueType,
+      description: null,
+      status: { name: entity.status, statusCategory: { name: 'Unknown' } },
+      priority: { name: 'Unknown' },
+      issueType: { id: 'unknown', name: entity.issueType, iconUrl: '', subtask: false },
+      assignee: entity.assignee ? { displayName: entity.assignee } : null,
+      reporter: { displayName: 'Unknown' },
       storyPoints: entity.storyPoints,
-      assignee: entity.assignee,
+      statusCategoryChangedDate: null,
       created: entity.created,
       updated: entity.updated,
       resolved: entity.resolved,

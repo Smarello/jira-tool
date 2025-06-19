@@ -50,7 +50,7 @@ export class DatabaseIntegrationService {
    * Following Clean Code: Express intent, error handling
    */
   async saveClosedSprint(
-    sprint: JiraSprint, 
+    sprint: JiraSprint,
     issues: readonly JiraIssueWithPoints[] = []
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
@@ -59,6 +59,35 @@ export class DatabaseIntegrationService {
     } catch (error) {
       return {
         success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Saves multiple closed sprints to database in batch
+   * Following Clean Code: Express intent, batch operations
+   */
+  async saveClosedSprintsBatch(
+    sprintsWithIssues: readonly { sprint: JiraSprint; issues: readonly JiraIssueWithPoints[] }[],
+    velocityDataMap?: Map<string, any>
+  ): Promise<{ success: boolean; successful: number; failed: number; error?: string }> {
+    try {
+      const result = await this.persistenceService.persistClosedSprintsBatch(
+        sprintsWithIssues,
+        velocityDataMap
+      );
+      return {
+        success: result.failed === 0,
+        successful: result.successful,
+        failed: result.failed,
+        error: result.failed > 0 ? result.errors.join('; ') : undefined
+      };
+    } catch (error) {
+      return {
+        success: false,
+        successful: 0,
+        failed: sprintsWithIssues.length,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }

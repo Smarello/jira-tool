@@ -123,10 +123,13 @@ export class MultiStageVelocityLoader {
         throw new Error(quickResult.error || 'Quick stage failed');
       }
 
-      // Early return for Kanban boards or small projects
-      if (quickResult.metadata.totalSprints <= 3 || !quickResult.metadata.hasMore) {
+      // Early return only for Kanban boards (no sprints)
+      if (quickResult.metadata.totalSprints === 0) {
         return this.createCombinedResult(quickResult.boardId, quickResult.boardName, stages, 'quick-only');
       }
+
+      // Always call at least one batch stage for database persistence
+      // This ensures closed sprints are saved to database even for small boards
 
       onProgress?.({
         stage: 'quick',

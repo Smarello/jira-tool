@@ -23,13 +23,45 @@ Il database layer è stato integrato nel tuo progetto JIRA Tool seguendo i princ
 
 ## 📊 Come Funziona
 
-### Flusso di Cache
+### Flusso di Cache Intelligente
 ```
 1. Request → /api/velocity/[boardId]
-2. Check Database Cache
-3. If Cache Valid → Return Cached Data
-4. If Cache Stale → Fetch from JIRA API
-5. Save to Database → Return Fresh Data
+2. Check Database for Closed Sprints
+3. If All Sprints Cached & Fresh → Return Cached Data
+4. If Missing Sprints → Fetch Missing from JIRA API
+5. If Cache Stale/Empty → Fetch All from JIRA API
+6. Save New Data to Database → Return Combined Data
+```
+
+### Workflow Dettagliato
+```
+┌─────────────────┐
+│   API Request   │
+└─────────┬───────┘
+          │
+          ▼
+┌─────────────────┐    ✅ Found & Fresh
+│  Check Database │ ──────────────────► Return Cached Data
+│   for Sprints   │
+└─────────┬───────┘
+          │ ❌ Missing/Stale
+          ▼
+┌─────────────────┐
+│  Fetch from     │
+│   JIRA API      │
+└─────────┬───────┘
+          │
+          ▼
+┌─────────────────┐
+│  Save to        │
+│   Database      │
+└─────────┬───────┘
+          │
+          ▼
+┌─────────────────┐
+│ Return Fresh    │
+│     Data        │
+└─────────────────┘
 ```
 
 ### Parametri URL

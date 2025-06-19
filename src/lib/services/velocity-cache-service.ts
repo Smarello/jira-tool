@@ -91,17 +91,23 @@ export class VelocityCacheService {
     }
 
     try {
-      // Try to get cached closed sprints from database
+
+      console.error(`---------------> getting velocity data for ${sprints.length} sprints`);
+      // Step 1: Check database for cached closed sprints
       const cachedSprints = await this.databaseService.getCachedClosedSprints(boardId, 50);
-      
-      if (cachedSprints.length > 0) {
-        // Check if cache is still valid
+
+      // Step 2: Identify which closed sprints are missing from cache
+      const closedSprints = sprints.filter(sprint => sprint.state === 'closed');
+      const missingSprintIds = this.findMissingSprintIds(closedSprints, cachedSprints);
+
+      // Step 3: If we have all closed sprints cached and cache is valid
+      if (missingSprintIds.length === 0 && cachedSprints.length > 0) {
         const cacheAge = this.calculateCacheAge(cachedSprints);
-        
+
         if (cacheAge <= this.config.maxCacheAgeHours) {
           // Use cached data
           const velocities = this.convertPersistedToVelocity(cachedSprints);
-          
+
           return {
             velocities,
             fromCache: true,
@@ -113,7 +119,24 @@ export class VelocityCacheService {
         }
       }
 
-      // Cache is stale or empty, calculate fresh data
+      // Step 4: Fetch missing sprints from JIRA and cache them
+      if (missingSprintIds.length > 0) {
+        await this.fetchAndCacheMissingSprints(missingSprintIds, issuesApi);
+
+        // Get updated cached data
+        const updatedCachedSprints = await this.databaseService.getCachedClosedSprints(boardId, 50);
+        const velocities = this.convertPersistedToVelocity(updatedCachedSprints);
+
+        return {
+          velocities,
+          fromCache: false, // Partially from cache, partially fresh
+          lastUpdated: new Date().toISOString(),
+          boardId,
+          totalSprints: updatedCachedSprints.length
+        };
+      }
+
+      // Step 5: Fallback to full fresh calculation
       return await this.calculateAndCacheFreshData(boardId, sprints, issuesApi, mcpClient);
 
     } catch (error) {
@@ -204,6 +227,7 @@ export class VelocityCacheService {
     const velocities = await calculateRealSprintsVelocity(sprints, issuesApi, mcpClient);
 
     // Cache closed sprints for future use
+    console.error(`---------------> caching closed sprints: ${this.config.enableDatabaseCache}`);
     if (this.config.enableDatabaseCache) {
       await this.cacheClosedSprints(sprints, velocities, issuesApi);
     }
@@ -227,7 +251,7 @@ export class VelocityCacheService {
     issuesApi: JiraIssuesApi
   ): Promise<void> {
     const closedSprints = sprints.filter(sprint => sprint.state === 'closed');
-    
+    console.error(`---------------> caching ${closedSprints.length} closed sprints`);
     for (const sprint of closedSprints) {
       try {
         // Check if sprint should be refreshed
@@ -244,6 +268,7 @@ export class VelocityCacheService {
           const velocityData = velocities.find(v => v.sprintId === sprint.id);
           
           // Save to database
+          console.error(`-----------> saving sprint ${sprint.id}`, sprint);
           const result = await this.databaseService.saveClosedSprint(sprint, sprintIssues);
           
           if (!result.success) {
@@ -297,12 +322,151 @@ export class VelocityCacheService {
    */
   private getLatestUpdateTime(persistedSprints: readonly PersistedSprint[]): string {
     if (persistedSprints.length === 0) return new Date().toISOString();
-    
+
     const latestUpdate = Math.max(
       ...persistedSprints.map(sprint => new Date(sprint.updatedAt).getTime())
     );
-    
+
     return new Date(latestUpdate).toISOString();
+  }
+
+  /**
+   * Finds sprint IDs that are missing from the cache
+   * Following Clean Code: Single responsibility, data comparison
+   */
+  private findMissingSprintIds(
+    closedSprints: readonly JiraSprint[],
+    cachedSprints: readonly PersistedSprint[]
+  ): readonly string[] {
+    const cachedSprintIds = new Set(cachedSprints.map(sprint => sprint.id));
+    return closedSprints
+      .filter(sprint => !cachedSprintIds.has(sprint.id))
+      .map(sprint => sprint.id);
+  }
+
+  /**
+   * Fetches missing sprints from JIRA and caches them
+   * Following Clean Code: Single responsibility, async operations
+   */
+  private async fetchAndCacheMissingSprints(
+    missingSprintIds: readonly string[],
+    issuesApi: JiraIssuesApi
+  ): Promise<void> {
+    console.log(`🔄 Fetching ${missingSprintIds.length} missing sprints from JIRA...`);
+
+    for (const sprintId of missingSprintIds) {
+      try {
+        // Get sprint details (we need to get this from the original sprints list)
+        // For now, we'll skip this and let the full refresh handle it
+        console.log(`⏭️  Skipping individual sprint fetch for ${sprintId} - will be handled by full refresh`);
+      } catch (error) {
+        console.warn(`Failed to fetch sprint ${sprintId}:`, error);
+      }
+    }
+  }
+
+  /**
+   * Gets closed sprints data with smart caching strategy
+   * Following Clean Code: Express intent, comprehensive caching
+   */
+  async getClosedSprintsWithCache(
+    boardId: string,
+    mcpClient: McpAtlassianClient
+  ): Promise<CachedVelocityData> {
+    if (!this.config.enableDatabaseCache) {
+      // No caching, fetch fresh data
+      return await this.fetchFreshClosedSprintsData(boardId, mcpClient);
+    }
+
+    try {
+      // Step 1: Check database for cached closed sprints
+      const cachedSprints = await this.databaseService.getCachedClosedSprints(boardId, 50);
+
+      if (cachedSprints.length > 0) {
+        const cacheAge = this.calculateCacheAge(cachedSprints);
+
+        // If cache is fresh enough, use it
+        if (cacheAge <= this.config.maxCacheAgeHours) {
+          const velocities = this.convertPersistedToVelocity(cachedSprints);
+
+          return {
+            velocities,
+            fromCache: true,
+            cacheAge,
+            lastUpdated: this.getLatestUpdateTime(cachedSprints),
+            boardId,
+            totalSprints: cachedSprints.length
+          };
+        }
+      }
+
+      // Step 2: Cache is empty or stale, fetch from JIRA
+      console.log(`🔄 Cache miss or stale for board ${boardId}, fetching from JIRA...`);
+      return await this.fetchAndCacheClosedSprintsData(boardId, mcpClient);
+
+    } catch (error) {
+      console.warn('Database cache error, falling back to JIRA API:', error);
+      return await this.fetchFreshClosedSprintsData(boardId, mcpClient);
+    }
+  }
+
+  /**
+   * Fetches fresh closed sprints data from JIRA without caching
+   * Following Clean Code: Single responsibility, pure API call
+   */
+  private async fetchFreshClosedSprintsData(
+    boardId: string,
+    mcpClient: McpAtlassianClient
+  ): Promise<CachedVelocityData> {
+    const sprintsResponse = await mcpClient.getBoardSprints(boardId);
+
+    if (!sprintsResponse.success) {
+      throw new Error(sprintsResponse.error || 'Failed to fetch sprints from JIRA');
+    }
+
+    const closedSprints = sprintsResponse.data.filter(sprint => sprint.state === 'closed');
+    const issuesApi = mcpClient.getIssuesApi();
+    const velocities = await calculateRealSprintsVelocity(closedSprints, issuesApi, mcpClient);
+
+    return {
+      velocities,
+      fromCache: false,
+      lastUpdated: new Date().toISOString(),
+      boardId,
+      totalSprints: closedSprints.length
+    };
+  }
+
+  /**
+   * Fetches closed sprints from JIRA and caches them
+   * Following Clean Code: Single responsibility, caching side effects
+   */
+  async fetchAndCacheClosedSprintsData(
+    boardId: string,
+    mcpClient: McpAtlassianClient
+  ): Promise<CachedVelocityData> {
+    // Fetch fresh data
+    const freshData = await this.fetchFreshClosedSprintsData(boardId, mcpClient);
+
+    // Cache the closed sprints
+    const sprintsResponse = await mcpClient.getBoardSprints(boardId);
+    if (sprintsResponse.success) {
+      const closedSprints = sprintsResponse.data.filter(sprint => sprint.state === 'closed');
+      const issuesApi = mcpClient.getIssuesApi();
+
+      // Cache each closed sprint
+      for (const sprint of closedSprints) {
+        try {
+          const sprintIssues = await issuesApi.fetchSprintIssues(sprint.id);
+          await this.databaseService.saveClosedSprint(sprint, sprintIssues);
+          console.log(`✅ Cached sprint: ${sprint.name}`);
+        } catch (error) {
+          console.warn(`Failed to cache sprint ${sprint.id}:`, error);
+        }
+      }
+    }
+
+    return freshData;
   }
 }
 

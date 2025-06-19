@@ -79,14 +79,21 @@ export const GET: APIRoute = async ({ params, request }) => {
     const boardName = boardResponse.success ? boardResponse.data.name : `Board ${boardId}`;
 
     // Get velocity data with intelligent caching
-    const issuesApi = mcpClient.getIssuesApi();
-    const cachedVelocityData = await velocityCacheService.getVelocityData(
-      boardId,
-      sprintsResponse.data,
-      issuesApi,
-      mcpClient,
-      forceRefresh
-    );
+    let cachedVelocityData;
+
+    if (forceRefresh) {
+      // Force refresh: fetch from JIRA and update cache
+      cachedVelocityData = await velocityCacheService.fetchAndCacheClosedSprintsData(
+        boardId,
+        mcpClient
+      );
+    } else {
+      // Smart caching: try cache first, then fallback to JIRA API
+      cachedVelocityData = await velocityCacheService.getClosedSprintsWithCache(
+        boardId,
+        mcpClient
+      );
+    }
 
     // Create enhanced velocity data for response
     const velocityData = createEnhancedVelocityData(
