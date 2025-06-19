@@ -545,26 +545,61 @@ function formatSprintDateRange(startDate: string, endDate: string, completeDate?
       icon.addEventListener('mouseenter', () => {
         // Create tooltip
         tooltip = document.createElement('div');
-        tooltip.className = 'completion-tooltip absolute z-50 px-2 py-1 text-xs text-white bg-gray-800 rounded shadow-lg pointer-events-none whitespace-nowrap';
+        tooltip.className = 'completion-tooltip fixed z-[9999] px-3 py-2 text-xs text-white bg-gray-800 rounded shadow-lg pointer-events-none max-w-xs';
         tooltip.textContent = tooltipText;
-        tooltip.style.bottom = '100%';
-        tooltip.style.left = '50%';
-        tooltip.style.transform = 'translateX(-50%)';
-        tooltip.style.marginBottom = '4px';
         
-        // Position tooltip relative to icon
+        // Append to body to avoid clipping
+        document.body.appendChild(tooltip);
+        
+        // Position tooltip dynamically based on available space
         const iconRect = icon.getBoundingClientRect();
-        const iconParent = icon.closest('.relative') || icon.parentElement;
-        if (iconParent) {
-          iconParent.appendChild(tooltip);
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
+        
+        // Calculate preferred position (above the icon)
+        let top = iconRect.top - tooltipRect.height - 8;
+        let left = iconRect.left + (iconRect.width / 2) - (tooltipRect.width / 2);
+        
+        // Check if tooltip would go above viewport
+        if (top < 10) {
+          // Position below the icon instead
+          top = iconRect.bottom + 8;
+          tooltip.classList.add('tooltip-below');
+        } else {
+          tooltip.classList.add('tooltip-above');
         }
+        
+        // Check if tooltip would go outside left/right viewport
+        if (left < 10) {
+          left = 10;
+        } else if (left + tooltipRect.width > viewportWidth - 10) {
+          left = viewportWidth - tooltipRect.width - 10;
+        }
+        
+        tooltip.style.top = `${top}px`;
+        tooltip.style.left = `${left}px`;
       });
       
-      icon.addEventListener('mouseleave', () => {
+      // Close tooltip function
+      const closeTooltip = () => {
         if (tooltip) {
           tooltip.remove();
           tooltip = null;
         }
+      };
+      
+      icon.addEventListener('mouseleave', closeTooltip);
+      
+      // Also close tooltip on scroll or resize to prevent misalignment
+      icon.addEventListener('mouseenter', () => {
+        window.addEventListener('scroll', closeTooltip, { passive: true });
+        window.addEventListener('resize', closeTooltip, { passive: true });
+      });
+      
+      icon.addEventListener('mouseleave', () => {
+        window.removeEventListener('scroll', closeTooltip);
+        window.removeEventListener('resize', closeTooltip);
       });
     });
   }
@@ -604,11 +639,14 @@ function formatSprintDateRange(startDate: string, endDate: string, completeDate?
   
   /* Enhanced tooltip styles */
   .completion-tooltip {
-    max-width: 200px;
-    z-index: 9999;
+    white-space: normal;
+    word-wrap: break-word;
+    line-height: 1.4;
+    backdrop-filter: blur(4px);
   }
   
-  .completion-tooltip::after {
+  /* Arrow for tooltip positioned above icon */
+  .completion-tooltip.tooltip-above::after {
     content: '';
     position: absolute;
     top: 100%;
@@ -617,5 +655,33 @@ function formatSprintDateRange(startDate: string, endDate: string, completeDate?
     border-width: 4px;
     border-style: solid;
     border-color: #374151 transparent transparent transparent;
+  }
+  
+  /* Arrow for tooltip positioned below icon */
+  .completion-tooltip.tooltip-below::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    margin-left: -4px;
+    border-width: 4px;
+    border-style: solid;
+    border-color: transparent transparent #374151 transparent;
+  }
+  
+  /* Smooth animation for tooltip appearance */
+  .completion-tooltip {
+    animation: tooltipFadeIn 0.2s ease-out;
+  }
+  
+  @keyframes tooltipFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 </style> 

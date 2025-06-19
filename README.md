@@ -1,191 +1,302 @@
-# Jira Tool Analytics Dashboard
+# Jira Tool - Velocity Analytics Dashboard
 
-Dashboard di analisi per progetti Jira, costruito con Astro 5.x e integrazione MCP.
+Un dashboard avanzato per l'analisi della velocity di team Scrum/Kanban utilizzando dati Jira, costruito con Astro, TypeScript e Tailwind CSS.
 
-## 🚀 Features
+## 🚀 Funzionalità Principali
 
-### Velocity Analytics
-- **Board Selection**: Selezione dinamica delle board Jira
-- **Sprint Metrics**: Metriche dettagliate per ogni sprint
-- **Velocity Charts**: Grafici interattivi per visualizzare la velocity nel tempo
-- **Trend Analysis**: Analisi delle tendenze e predizioni
-- **Progress Tracking**: Monitoraggio real-time del progresso degli sprint
+- **Analisi Velocity**: Calcolo accurato della velocity del team basato su story points completati
+- **Validazione Avanzata**: Controllo preciso delle transizioni alle colonne "Done" per determinare quando le issue sono state realmente completate
+- **Dashboard Interattivo**: Visualizzazione di metriche, trend e dettagli per ogni sprint
+- **Integrazione Jira**: Connessione diretta con Jira Cloud tramite API per dati real-time
+- **Responsive Design**: Interfaccia ottimizzata per desktop e mobile
 
-### Project Analytics
-- **KPI Dashboard**: Metriche chiave del progetto
-- **Issue Analysis**: Analisi dettagliata delle issue per tipo e priorità
-- **Team Performance**: Metriche di performance del team
-- **Time Tracking**: Analisi dei tempi di risoluzione
+## 📋 Prerequisiti
 
-### Advanced Features
-- **Real-time Updates**: Aggiornamenti in tempo reale via MCP
-- **Caching Intelligente**: Sistema di cache per ottimizzare le performance
-- **Error Handling**: Gestione robusta degli errori con fallback
-- **Responsive Design**: UI ottimizzata per tutti i dispositivi
-- **Health Monitoring**: Monitoraggio dello stato delle API
+Prima di iniziare, assicurati di avere installato:
 
-## 🛠 Tech Stack
+- **Node.js**: versione 18.0 o superiore
+  ```bash
+  node --version  # dovrebbe essere >= 18.0.0
+  ```
+- **npm**: versione 8.0 o superiore (incluso con Node.js)
+  ```bash
+  npm --version   # dovrebbe essere >= 8.0.0
+  ```
+- **Git**: per clonare il repository
+  ```bash
+  git --version
+  ```
 
-- **Frontend**: Astro 5.x, TypeScript, Tailwind CSS
-- **Backend**: Node.js API Routes
-- **Integration**: MCP (Model Context Protocol) per Atlassian
-- **Charts**: Chart.js per visualizzazioni
-- **Styling**: Tailwind CSS con componenti personalizzati
+## 🛠️ Setup Ambiente di Sviluppo
 
-## 📋 Prerequisites
+### 1. Clona il Repository
 
-- Node.js 18+ 
-- Account Jira/Atlassian con API access
-- MCP server configurato (opzionale per sviluppo)
+```bash
+git clone https://github.com/your-org/jira-tool.git
+cd jira-tool
+```
 
-## ⚙️ Environment Setup
+### 2. Installa le Dipendenze
 
-Crea un file `.env` nella root del progetto:
+```bash
+npm install
+```
+
+Questo comando installerà tutte le dipendenze necessarie definite in `package.json`, incluse:
+- Astro (framework)
+- TypeScript (type safety)
+- Tailwind CSS (styling)
+- E molte altre...
+
+### 3. Configurazione Jira
+
+L'applicazione richiede accesso a Jira Cloud. Crea un file `.env.local` nella root del progetto:
+
+```bash
+# Copia il template di configurazione
+cp .env.example .env.local
+```
+
+Modifica `.env.local` con le tue credenziali Jira:
 
 ```env
-# Jira Configuration
-JIRA_BASE_URL=https://your-domain.atlassian.net/
-JIRA_EMAIL=your.email@company.com
-JIRA_API_TOKEN=your_api_token_here
-JIRA_PROJECT_KEY=YOUR_PROJECT_KEY
+# Configurazione Jira Cloud
+JIRA_BASE_URL=https://your-domain.atlassian.net
+JIRA_EMAIL=your-email@company.com
+JIRA_API_TOKEN=your-jira-api-token
 
-# MCP Configuration (optional)
-MCP_SERVER_URL=http://localhost:3001
-MCP_ENABLED=true
-
-# Application
+# Configurazione opzionale
 NODE_ENV=development
 ```
 
-## 🚀 Quick Start
+#### Come ottenere il Jira API Token:
 
-1. **Clone & Install**
-   ```bash
-   git clone <repository-url>
-   cd jira-tool
-   npm install
-   ```
+1. Vai su [Atlassian Account Settings](https://id.atlassian.com/manage-profile/security/api-tokens)
+2. Clicca "Create API token"
+3. Assegna un nome al token (es. "Jira Tool Development")
+4. Copia il token generato e incollalo in `.env.local`
 
-2. **Configure Environment**
-   - Copia `.env.example` in `.env`
-   - Configura le credenziali Jira
-   - Layout responsive con branding personalizzabile
+⚠️ **Importante**: Non committare mai il file `.env.local` nel repository!
 
-3. **Start Development**
-   ```bash
-   npm run dev
-   ```
+### 4. Verifica la Configurazione
 
-4. **Build for Production**
-   ```bash
-   npm run build
-   npm run preview
-   ```
-
-## 📁 Project Structure
-
-```
-src/
-├── components/          # Componenti riusabili
-│   ├── ui/             # Componenti UI base
-│   ├── velocity/       # Componenti velocity-specific
-│   ├── analytics/      # Componenti analytics
-│   └── jira/          # Componenti Jira integration
-├── lib/               # Business logic e utilities
-│   ├── jira/          # Client e API Jira
-│   ├── velocity/      # Logica velocity calculations
-│   ├── analytics/     # Logica analytics
-│   └── utils/         # Utilities generiche
-├── pages/             # Route pages (Astro)
-│   ├── api/           # API endpoints
-│   ├── velocity/      # Velocity dashboard
-│   └── analytics/     # Analytics pages
-└── styles/            # Stili globali
-```
-
-## 🔧 API Endpoints
-
-### Health & Monitoring
-- `GET /api/health` - System health check
-- `GET /api/health/jira` - Jira connection status
-
-### Velocity Analytics
-- `GET /api/velocity/boards` - Lista board disponibili
-- `GET /api/velocity/[boardId]` - Dati velocity per board
-- `GET /api/velocity/[boardId]/progress` - Progress real-time
-
-### Project Analytics  
-- `GET /api/jira/analytics` - Metriche generali progetto
-- `GET /api/jira/project` - Dettagli progetto specifico
-
-### Debug & Development
-- `GET /api/debug/cache` - Cache status e management
-- `GET /api/debug/fields` - Jira fields mapping
-- `GET /api/debug/performance-test` - Performance testing
-
-## 🎨 Customization
-
-### Branding
-Il sistema supporta personalizzazione completa del branding:
-
-- **Colors**: Modifica `tailwind.config.js` per i colori del brand
-- **Fonts**: Configura font personalizzati in `src/styles/global.css`  
-- **Logo**: Sostituisci `public/favicon.svg` con il tuo logo
-- **Layout**: Personalizza `src/components/ui/Layout.astro`
-
-### Componenti
-Tutti i componenti seguono i principi di Clean Architecture:
-
-- **Single Responsibility**: Ogni componente ha una responsabilità specifica
-- **Dependency Inversion**: Dipendenze iniettate tramite props
-- **Interface Segregation**: Props interface minimali e specifiche
-
-## 🧪 Testing
+Testa la connessione a Jira:
 
 ```bash
-# Run tests
-npm run test
-
-# Run tests with coverage
-npm run test:coverage
-
-# Run e2e tests  
-npm run test:e2e
+npm run test:jira
 ```
 
-## 📊 Performance
+Se tutto è configurato correttamente, vedrai un messaggio di successo.
 
-- **Lighthouse Score**: 95+ su tutte le metriche
-- **Bundle Size**: < 100KB gzipped
-- **API Response**: < 200ms media
-- **Cache Hit Rate**: > 90% per dati frequenti
+## 🚀 Avvio dell'Applicazione
 
-## 🔒 Security
+### Modalità Sviluppo
 
-- API token sicuri via environment variables
-- Rate limiting su endpoint pubblici
-- Sanitizzazione input utente
-- CORS configurato per domini autorizzati
+Per avviare il server di sviluppo con hot-reload:
+
+```bash
+npm run dev
+```
+
+L'applicazione sarà disponibile su: **http://localhost:4321**
+
+### Build di Produzione
+
+Per creare una build ottimizzata:
+
+```bash
+npm run build
+```
+
+### Preview Build di Produzione
+
+Per testare la build di produzione localmente:
+
+```bash
+npm run preview
+```
+
+## 📁 Struttura del Progetto
+
+```
+jira-tool/
+├── src/
+│   ├── components/          # Componenti Astro riutilizzabili
+│   │   ├── ui/             # Componenti UI base (Modal, Select, etc.)
+│   │   ├── velocity/       # Componenti specifici per velocity
+│   │   └── jira/           # Componenti per integrazione Jira
+│   ├── lib/                # Logica business e utilities
+│   │   ├── jira/          # API client e types per Jira
+│   │   ├── velocity/      # Calcoli e validazioni velocity
+│   │   ├── mcp/           # MCP Atlassian client
+│   │   └── utils/         # Utilities generiche
+│   ├── pages/             # Route e API endpoints
+│   │   ├── api/           # API endpoints backend
+│   │   └── velocity/      # Pagine velocity dashboard
+│   └── styles/            # CSS globali
+├── public/                # Asset statici
+├── .env.example          # Template configurazione
+└── README.md            # Questo file
+```
+
+## 🔧 Comandi Utili
+
+### Sviluppo
+
+```bash
+# Avvia server di sviluppo
+npm run dev
+
+# Avvia con porta specifica
+npm run dev -- --port 3000
+
+# Type checking
+npm run type-check
+
+# Linting
+npm run lint
+
+# Formattazione codice
+npm run format
+```
+
+### Build e Deploy
+
+```bash
+# Build di produzione
+npm run build
+
+# Preview build locale
+npm run preview
+
+# Analisi bundle
+npm run build:analyze
+```
+
+### Testing e Debug
+
+```bash
+# Test connessione Jira
+npm run test:jira
+
+# Debug API cache
+npm run debug:cache
+
+# Performance test
+npm run test:performance
+```
+
+## 🐛 Troubleshooting
+
+### Problemi Comuni
+
+#### 1. Errore "Cannot connect to Jira"
+
+**Causa**: Credenziali Jira non valide o non configurate.
+
+**Soluzione**:
+- Verifica che `.env.local` esista e contenga i valori corretti
+- Controlla che il Jira API Token sia valido
+- Assicurati che l'email utilizzata abbia accesso al progetto Jira
+
+#### 2. Errore "Port 4321 already in use"
+
+**Causa**: La porta di default è occupata da un altro processo.
+
+**Soluzione**:
+```bash
+# Usa una porta diversa
+npm run dev -- --port 3000
+```
+
+#### 3. Problemi di Performance
+
+**Causa**: Troppi dati da caricare o cache non ottimizzata.
+
+**Soluzione**:
+- Controlla la console del browser per errori
+- Usa `npm run debug:cache` per analizzare la cache
+- Limita il periodo temporale delle analisi
+
+#### 4. TypeScript Errors
+
+**Causa**: Problemi di tipizzazione o dipendenze.
+
+**Soluzione**:
+```bash
+# Reinstalla dipendenze
+rm -rf node_modules package-lock.json
+npm install
+
+# Verifica types
+npm run type-check
+```
+
+### Log e Debug
+
+Per abilitare log dettagliati, aggiungi al tuo `.env.local`:
+
+```env
+DEBUG=true
+LOG_LEVEL=debug
+```
+
+## 📚 Documentazione Tecnica
+
+### Architettura
+
+L'applicazione segue i principi di **Clean Architecture**:
+
+- **Domain Layer**: Logica business in `src/lib/velocity/`
+- **Application Layer**: Use cases e orchestrazione
+- **Infrastructure Layer**: API clients e database access
+- **Presentation Layer**: Componenti UI e pagine
+
+### Tecnologie Utilizzate
+
+- **[Astro](https://astro.build/)**: Framework per siti web veloci
+- **[TypeScript](https://www.typescriptlang.org/)**: Type safety e developer experience
+- **[Tailwind CSS](https://tailwindcss.com/)**: Utility-first CSS framework
+- **[Jira REST API](https://developer.atlassian.com/cloud/jira/platform/rest/v3/)**: Integrazione con Jira Cloud
+
+### Design Patterns
+
+Il codice utilizza design patterns consolidati:
+- **Factory Pattern**: Per la creazione di client API
+- **Strategy Pattern**: Per diversi algoritmi di validazione
+- **Observer Pattern**: Per aggiornamenti real-time
+- **Repository Pattern**: Per accesso ai dati
 
 ## 🤝 Contributing
 
-1. Fork del repository
-2. Crea feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit delle modifiche (`git commit -m 'Add amazing feature'`)
-4. Push del branch (`git push origin feature/amazing-feature`)
-5. Apri Pull Request
+Per contribuire al progetto:
 
-## 📝 License
+1. Crea un branch per la tua feature: `git checkout -b feature/nome-feature`
+2. Committa le modifiche: `git commit -m 'Add: nuova feature'`
+3. Pusha il branch: `git push origin feature/nome-feature`
+4. Apri una Pull Request
 
-Questo progetto è sotto licenza MIT. Vedi `LICENSE` per dettagli.
+### Code Style
 
-## 🆘 Support
+Il progetto segue i principi di **Clean Code**:
+- Nomi espliciti e pronunciabili
+- Funzioni piccole e focused
+- Single Responsibility Principle
+- Commenti che spiegano il "perché", non il "cosa"
 
-Per supporto e domande:
-- Apri un issue su GitHub
-- Consulta la documentazione API
-- Controlla i log di debug in `/api/debug/`
+## 🆘 Supporto
+
+Se hai problemi o domande:
+
+1. Controlla la sezione [Troubleshooting](#🐛-troubleshooting)
+2. Cerca nelle [Issues](https://github.com/your-org/jira-tool/issues) esistenti
+3. Crea una nuova issue con dettagli sul problema
+4. Contatta il team di sviluppo
+
+## 📄 Licenza
+
+Questo progetto è sotto licenza MIT. Vedi il file `LICENSE` per dettagli.
 
 ---
 
-**Jira Tool Analytics Dashboard** - Potente strumento per l'analisi e il monitoraggio dei progetti Jira con UI responsive multi-device e personalizzazione completa del branding.
+**Happy coding! 🚀**
