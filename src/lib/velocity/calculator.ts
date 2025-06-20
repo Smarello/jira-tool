@@ -8,6 +8,7 @@ import type { JiraIssuesApi, JiraIssueWithPoints } from '../jira/issues-api.js';
 import type { McpAtlassianClient } from '../mcp/atlassian.js';
 import { calculateSprintVelocity, type SprintVelocity } from './mock-calculator.js';
 import { batchValidateSprintVelocity } from './batch-validator.js';
+import type { SprintFromDatabase } from '../database/services/database-first-loader.js';
 
 /**
  * Extended result type that includes both velocity and issues data
@@ -235,6 +236,68 @@ export async function calculateRealSprintsVelocityWithIssues(
   return {
     velocities,
     sprintIssuesMap
+  };
+}
+
+/**
+ * Calculates velocity for mixed data sources (database + API)
+ * Following Clean Code: Compose operations, database-first strategy
+ */
+export async function calculateMixedSprintsVelocityWithIssues(
+  sprintsFromDatabase: readonly SprintFromDatabase[],
+  sprintsToLoadFromApi: readonly JiraSprint[],
+  issuesApi: JiraIssuesApi,
+  mcpClient: McpAtlassianClient
+): Promise<BatchVelocityResult> {
+  console.log(`[Calculator] Starting mixed velocity calculation:`);
+  console.log(`[Calculator] - Database sprints: ${sprintsFromDatabase.length}`);
+  console.log(`[Calculator] - API sprints: ${sprintsToLoadFromApi.length}`);
+
+  const allVelocities: SprintVelocity[] = [];
+  const allSprintIssuesMap = new Map<string, readonly JiraIssueWithPoints[]>();
+
+  // Process database sprints (no API calls needed)
+  for (const sprintFromDb of sprintsFromDatabase) {
+    console.log(`[Calculator] Processing database sprint: ${sprintFromDb.sprint.name}`);
+
+    // Convert database sprint to velocity format
+    const velocity: SprintVelocity = {
+      sprint: sprintFromDb.sprint,
+      committedPoints: sprintFromDb.velocityData?.committedPoints || 0,
+      completedPoints: sprintFromDb.velocityData?.completedPoints || 0,
+      velocityPoints: sprintFromDb.velocityData?.completedPoints || 0,
+      completionRate: sprintFromDb.velocityData?.committedPoints
+        ? (sprintFromDb.velocityData.completedPoints / sprintFromDb.velocityData.committedPoints) * 100
+        : 0
+    };
+
+    allVelocities.push(velocity);
+    allSprintIssuesMap.set(sprintFromDb.sprint.id, sprintFromDb.issues);
+  }
+
+  // Process API sprints (if any)
+  if (sprintsToLoadFromApi.length > 0) {
+    console.log(`[Calculator] Loading ${sprintsToLoadFromApi.length} sprints from API...`);
+
+    const apiResult = await calculateRealSprintsVelocityWithIssues(
+      sprintsToLoadFromApi,
+      issuesApi,
+      mcpClient
+    );
+
+    allVelocities.push(...apiResult.velocities);
+
+    // Merge issues maps
+    for (const [sprintId, issues] of apiResult.sprintIssuesMap.entries()) {
+      allSprintIssuesMap.set(sprintId, issues);
+    }
+  }
+
+  console.log(`[Calculator] Mixed calculation complete. Total velocities: ${allVelocities.length}`);
+
+  return {
+    velocities: allVelocities,
+    sprintIssuesMap: allSprintIssuesMap
   };
 }
 
