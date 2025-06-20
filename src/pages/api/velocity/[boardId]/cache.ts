@@ -42,11 +42,11 @@ export const GET: APIRoute = async ({ params }) => {
         lastUpdated: cachedData.lastUpdated,
         totalSprints: cachedData.totalSprints,
         velocities: cachedData.velocities.map(v => ({
-          sprintId: v.sprintId,
-          sprintName: v.sprintName,
+          sprintId: v.sprint.id,
+          sprintName: v.sprint.name,
           completedPoints: v.completedPoints,
           committedPoints: v.committedPoints,
-          velocityPercentage: v.velocityPercentage
+          velocityPercentage: v.completionRate
         }))
       }),
       { 

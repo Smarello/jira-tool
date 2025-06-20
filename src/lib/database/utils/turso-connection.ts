@@ -5,6 +5,7 @@
 
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
+import { sql } from 'drizzle-orm';
 import { tursoSchema } from '../schemas/turso-schema';
 import type { DatabaseConnection } from '../connection-factory';
 
@@ -38,11 +39,11 @@ export async function createTursoConnection(config: TursoConnectionConfig): Prom
         encryptionKey: config.encryptionKey,
       });
 
-      // Test the connection
-      await testConnection(client);
-
       // Create Drizzle instance
       const db = drizzle(client, { schema: tursoSchema });
+
+      // Test the connection
+      await testConnection(db);
       
       console.log(`✅ Turso connection established (attempt ${attempt})`);
       return db;
@@ -66,10 +67,10 @@ export async function createTursoConnection(config: TursoConnectionConfig): Prom
  * Tests database connection
  * Following Clean Code: Single responsibility, connection validation
  */
-async function testConnection(client: any): Promise<void> {
+async function testConnection(db: DatabaseConnection): Promise<void> {
   try {
-    // Simple query to test connection
-    await client.execute('SELECT 1');
+    // Simple query to test connection using Drizzle ORM
+    await db.run(sql`SELECT 1`);
   } catch (error) {
     throw new Error(`Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -128,22 +129,22 @@ export async function getTursoDatabaseInfo(db: DatabaseConnection): Promise<{
   indexCount: number;
 }> {
   try {
-    // Get SQLite version
-    const versionResult = await db.execute('SELECT sqlite_version() as version');
+    // Get SQLite version using Drizzle ORM
+    const versionResult = await db.run(sql`SELECT sqlite_version() as version`);
     const version = versionResult.rows[0]?.version as string || 'unknown';
 
-    // Get table count
-    const tablesResult = await db.execute(`
-      SELECT COUNT(*) as count 
-      FROM sqlite_master 
+    // Get table count using Drizzle ORM
+    const tablesResult = await db.run(sql`
+      SELECT COUNT(*) as count
+      FROM sqlite_master
       WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
     `);
     const tableCount = tablesResult.rows[0]?.count as number || 0;
 
-    // Get index count
-    const indexesResult = await db.execute(`
-      SELECT COUNT(*) as count 
-      FROM sqlite_master 
+    // Get index count using Drizzle ORM
+    const indexesResult = await db.run(sql`
+      SELECT COUNT(*) as count
+      FROM sqlite_master
       WHERE type = 'index' AND name NOT LIKE 'sqlite_%'
     `);
     const indexCount = indexesResult.rows[0]?.count as number || 0;
@@ -170,8 +171,8 @@ export async function performTursoHealthCheck(db: DatabaseConnection): Promise<{
   const startTime = Date.now();
   
   try {
-    // Simple query to test responsiveness
-    await db.execute('SELECT 1');
+    // Simple query to test responsiveness using Drizzle ORM
+    await db.run(sql`SELECT 1`);
     
     const latency = Date.now() - startTime;
     

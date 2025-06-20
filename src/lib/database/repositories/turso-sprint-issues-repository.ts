@@ -417,16 +417,65 @@ export class TursoSprintIssuesRepository implements ISprintIssuesRepository {
    * Following Clean Code: Single responsibility, immutability
    */
   private mapToJiraIssue(entity: any): JiraIssueWithPoints {
+    // Map status category to valid values
+    const getValidStatusCategory = (status: string): 'To Do' | 'In Progress' | 'Done' => {
+      const lowerStatus = status.toLowerCase();
+      if (lowerStatus.includes('done') || lowerStatus.includes('complete') || lowerStatus.includes('closed')) {
+        return 'Done';
+      }
+      if (lowerStatus.includes('progress') || lowerStatus.includes('review') || lowerStatus.includes('testing')) {
+        return 'In Progress';
+      }
+      return 'To Do';
+    };
+
     return {
       id: entity.issueId,
       key: entity.issueKey,
       summary: entity.summary,
       description: null,
-      status: { name: entity.status, statusCategory: { name: 'Unknown' } },
-      priority: { name: 'Unknown' },
-      issueType: { id: 'unknown', name: entity.issueType, iconUrl: '', subtask: false },
-      assignee: entity.assignee ? { displayName: entity.assignee } : null,
-      reporter: { displayName: 'Unknown' },
+      status: {
+        id: 'unknown',
+        name: entity.status,
+        statusCategory: {
+          id: 1,
+          name: getValidStatusCategory(entity.status),
+          colorName: 'blue-gray'
+        }
+      },
+      priority: {
+        id: 'unknown',
+        name: 'Unknown',
+        iconUrl: ''
+      },
+      issueType: {
+        id: 'unknown',
+        name: entity.issueType,
+        iconUrl: '',
+        subtask: false
+      },
+      assignee: entity.assignee ? {
+        accountId: 'unknown',
+        displayName: entity.assignee,
+        emailAddress: 'unknown@example.com',
+        avatarUrls: {
+          '16x16': '',
+          '24x24': '',
+          '32x32': '',
+          '48x48': ''
+        }
+      } : null,
+      reporter: {
+        accountId: 'unknown',
+        displayName: 'Unknown',
+        emailAddress: 'unknown@example.com',
+        avatarUrls: {
+          '16x16': '',
+          '24x24': '',
+          '32x32': '',
+          '48x48': ''
+        }
+      },
       storyPoints: entity.storyPoints,
       statusCategoryChangedDate: null,
       completionDate: entity.completionDate,

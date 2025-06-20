@@ -45,7 +45,7 @@ export interface CachedVelocityData {
  * Following Clean Architecture: Application service in application layer
  */
 export class VelocityCacheService {
-  private readonly databaseService;
+  private readonly databaseService: any | undefined;
   private readonly config: VelocityCacheConfig;
 
   constructor(config?: Partial<VelocityCacheConfig>) {
@@ -90,6 +90,10 @@ export class VelocityCacheService {
     }
 
     try {
+      // Ensure database service is available
+      if (!this.databaseService) {
+        throw new Error('Database service not initialized');
+      }
 
       console.error(`---------------> getting velocity data for ${sprints.length} sprints`);
       // Step 1: Check database for cached closed sprints
@@ -149,7 +153,7 @@ export class VelocityCacheService {
    * Following Clean Code: Express intent, specific use case
    */
   async getCachedClosedSprintsVelocity(boardId: string): Promise<CachedVelocityData | null> {
-    if (!this.config.enableDatabaseCache) {
+    if (!this.config.enableDatabaseCache || !this.databaseService) {
       return null;
     }
 
@@ -227,7 +231,7 @@ export class VelocityCacheService {
 
     // Cache closed sprints for future use
     console.error(`---------------> caching closed sprints: ${this.config.enableDatabaseCache}`);
-    if (this.config.enableDatabaseCache) {
+    if (this.config.enableDatabaseCache && this.databaseService) {
       await this.cacheClosedSprints(sprints, velocities, issuesApi);
     }
 
@@ -249,13 +253,19 @@ export class VelocityCacheService {
     _velocities: readonly SprintVelocity[],
     issuesApi: JiraIssuesApi
   ): Promise<void> {
+    // Ensure database service is available
+    if (!this.databaseService) {
+      console.warn('Database service not available, skipping caching');
+      return;
+    }
+
     const closedSprints = sprints.filter(sprint => sprint.state === 'closed');
     console.error(`---------------> caching ${closedSprints.length} closed sprints`);
     for (const sprint of closedSprints) {
       try {
         // Check if sprint should be refreshed
         const shouldRefresh = await this.databaseService.shouldRefreshFromJira(
-          sprint.id, 
+          sprint.id,
           this.config.maxCacheAgeHours
         );
         
@@ -287,18 +297,30 @@ export class VelocityCacheService {
   private convertPersistedToVelocity(persistedSprints: readonly PersistedSprint[]): readonly SprintVelocity[] {
     return persistedSprints
       .filter(sprint => sprint.velocityData)
-      .map(sprint => ({
-        sprintId: sprint.id,
-        sprintName: sprint.name,
-        boardId: sprint.boardId,
-        committedPoints: sprint.velocityData!.committedPoints,
-        completedPoints: sprint.velocityData!.completedPoints,
-        velocityPercentage: (sprint.velocityData!.completedPoints / sprint.velocityData!.committedPoints) * 100,
-        startDate: sprint.startDate || '',
-        endDate: sprint.endDate || '',
-        completeDate: sprint.completeDate || '',
-        goal: sprint.goal || ''
-      }));
+      .map(sprint => {
+        // Create JiraSprint object from persisted data
+        const jiraSprint: JiraSprint = {
+          id: sprint.id,
+          name: sprint.name,
+          state: 'closed',
+          startDate: sprint.startDate || '',
+          endDate: sprint.endDate || '',
+          completeDate: sprint.completeDate || undefined,
+          goal: sprint.goal,
+          originBoardId: sprint.originBoardId
+        };
+
+        // Create SprintVelocity object with correct structure
+        return {
+          sprint: jiraSprint,
+          committedPoints: sprint.velocityData!.committedPoints,
+          completedPoints: sprint.velocityData!.completedPoints,
+          velocityPoints: sprint.velocityData!.completedPoints, // For closed sprints, velocity = completed points
+          completionRate: sprint.velocityData!.committedPoints > 0
+            ? Math.round((sprint.velocityData!.completedPoints / sprint.velocityData!.committedPoints) * 100)
+            : 0
+        };
+      });
   }
 
   /**
@@ -372,7 +394,7 @@ export class VelocityCacheService {
     boardId: string,
     mcpClient: McpAtlassianClient
   ): Promise<CachedVelocityData> {
-    if (!this.config.enableDatabaseCache) {
+    if (!this.config.enableDatabaseCache || !this.databaseService) {
       // No caching, fetch fresh data
       return await this.fetchFreshClosedSprintsData(boardId, mcpClient);
     }
@@ -449,7 +471,7 @@ export class VelocityCacheService {
 
     // Cache the closed sprints
     const sprintsResponse = await mcpClient.getBoardSprints(boardId);
-    if (sprintsResponse.success) {
+    if (sprintsResponse.success && this.databaseService) {
       const closedSprints = sprintsResponse.data.filter(sprint => sprint.state === 'closed');
       const issuesApi = mcpClient.getIssuesApi();
 
