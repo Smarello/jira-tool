@@ -301,7 +301,7 @@ export async function calculateMixedSprintsVelocityWithIssues(
           committedPoints: result.totalPoints,
           completedPoints: result.validPoints,
           velocityPoints: result.validPoints,
-          completionRate: result.totalPoints > 0 ? (result.validPoints / result.totalPoints) * 100 : 0
+          completionRate: result.totalPoints > 0 ? Math.round((result.validPoints / result.totalPoints) * 100) : 0
         };
 
         allVelocities.push(velocity);
@@ -319,7 +319,7 @@ export async function calculateMixedSprintsVelocityWithIssues(
           completedPoints: sprintFromDb.velocityData?.completedPoints || 0,
           velocityPoints: sprintFromDb.velocityData?.completedPoints || 0,
           completionRate: sprintFromDb.velocityData?.committedPoints
-            ? (sprintFromDb.velocityData.completedPoints / sprintFromDb.velocityData.committedPoints) * 100
+            ? Math.round((sprintFromDb.velocityData.completedPoints / sprintFromDb.velocityData.committedPoints) * 100)
             : 0
         };
 

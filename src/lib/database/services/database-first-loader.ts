@@ -238,7 +238,7 @@ export class DatabaseFirstLoader {
 
     const sprintDurationDays = this.calculateSprintDuration(sprint);
     const completedPoints = velocityData?.completedPoints || 0;
-    const pointsPerDay = sprintDurationDays > 0 ? completedPoints / sprintDurationDays : 0;
+    const pointsPerDay = sprintDurationDays > 0 ? Math.round((completedPoints / sprintDurationDays) * 100) / 100 : 0;
 
     return {
       sprint,
@@ -246,12 +246,12 @@ export class DatabaseFirstLoader {
       completedPoints,
       velocityPoints: completedPoints,
       completionRate: velocityData?.committedPoints
-        ? (velocityData.completedPoints / velocityData.committedPoints) * 100
+        ? Math.round((velocityData.completedPoints / velocityData.committedPoints) * 100)
         : 0,
       issuesCount: velocityData?.issuesCount || sprintFromDb.issues.length,
       completedIssuesCount: velocityData?.completedIssuesCount || 0,
       averagePointsPerIssue: velocityData?.issuesCount
-        ? velocityData.completedPoints / velocityData.issuesCount
+        ? Math.round((velocityData.completedPoints / velocityData.issuesCount) * 100) / 100
         : 0,
       sprintDurationDays,
       pointsPerDay,

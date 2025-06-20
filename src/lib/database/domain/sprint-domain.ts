@@ -72,7 +72,7 @@ export class SprintVelocity {
    * Following Clean Code: Express intent, business logic
    */
   get velocityPercentage(): number {
-    return this.committedPoints === 0 ? 0 : (this.completedPoints / this.committedPoints) * 100;
+    return this.committedPoints === 0 ? 0 : Math.round((this.completedPoints / this.committedPoints) * 100);
   }
 
   /**
@@ -80,7 +80,7 @@ export class SprintVelocity {
    * Following Clean Code: Express intent, business logic
    */
   get completionRate(): number {
-    return this.issuesCount === 0 ? 0 : (this.completedIssuesCount / this.issuesCount) * 100;
+    return this.issuesCount === 0 ? 0 : Math.round((this.completedIssuesCount / this.issuesCount) * 100);
   }
 
   /**

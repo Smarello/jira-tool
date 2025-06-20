@@ -328,7 +328,7 @@ export class TursoClosedSprintsRepository implements IClosedSprintsRepository {
         : 0;
 
       const completionRate = sprintsWithVelocity.length > 0
-        ? sprintsWithVelocity.reduce((sum, v) => sum + (v.completedPoints / v.committedPoints * 100), 0) / sprintsWithVelocity.length
+        ? Math.round(sprintsWithVelocity.reduce((sum, v) => sum + (v.completedPoints / v.committedPoints * 100), 0) / sprintsWithVelocity.length)
         : 0;
 
       return {
