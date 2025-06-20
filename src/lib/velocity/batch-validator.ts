@@ -71,7 +71,7 @@ export async function validateIssuesWithContext(
   issues: readonly JiraIssueWithPoints[],
   context: SprintValidationContext,
   mcpClient: McpAtlassianClient,
-  progressCallback?: (currentIssue: number, totalIssues: number, issueKey: string) => void
+  progressCallback?: (currentIssue: number, totalIssues: number, _issueKey: string) => void
 ): Promise<readonly AdvancedValidationResult[]> {
   console.log(`[BatchValidator] Validating ${issues.length} issues with pre-fetched context (NO API CALLS)`);
   
@@ -200,7 +200,7 @@ export async function batchValidateSprintVelocity(
         issues, 
         sprintContext, 
         mcpClient,
-        (currentIssue: number, totalIssues: number, issueKey: string) => {
+        (currentIssue: number, totalIssues: number, _issueKey: string) => {
           if (progressCallback) {
             const globalSprintIndex = sprintIssuesPairs.findIndex(pair => pair.sprint.id === sprint.id) + 1;
             progressCallback(
@@ -229,8 +229,8 @@ export async function batchValidateSprintVelocity(
     }
   }
   
-  const totalApiCalls = sprintsByBoard.size;
-  const totalIssues = sprintIssuesPairs.reduce((sum, pair) => sum + pair.issues.length, 0);
+  // const totalApiCalls = sprintsByBoard.size;
+  // const totalIssues = sprintIssuesPairs.reduce((sum, pair) => sum + pair.issues.length, 0);
   
   return results;
 } 

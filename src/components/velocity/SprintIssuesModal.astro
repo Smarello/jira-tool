@@ -6,7 +6,7 @@
 
 import Modal from '../ui/Modal.astro';
 import type { SprintVelocity } from '../../lib/velocity/mock-calculator';
-import { formatDateForDisplay } from '../../lib/utils/dates';
+
 
 export interface Props {
   sprint: SprintVelocity | null;
@@ -15,18 +15,7 @@ export interface Props {
 
 const { sprint, isOpen = false } = Astro.props;
 
-// Helper function to format sprint date range
-function formatSprintDateRange(startDate: string, endDate: string, completeDate?: string): string {
-  const start = formatDateForDisplay(startDate);
-  const end = formatDateForDisplay(endDate);
-  
-  if (completeDate) {
-    const completed = formatDateForDisplay(completeDate);
-    return `${start} - ${end} (Completed: ${completed})`;
-  }
-  
-  return `${start} - ${end}`;
-}
+
 ---
 
 <Modal 
@@ -554,7 +543,7 @@ function formatSprintDateRange(startDate: string, endDate: string, completeDate?
         // Position tooltip dynamically based on available space
         const iconRect = icon.getBoundingClientRect();
         const tooltipRect = tooltip.getBoundingClientRect();
-        const viewportHeight = window.innerHeight;
+
         const viewportWidth = window.innerWidth;
         
         // Calculate preferred position (above the icon)

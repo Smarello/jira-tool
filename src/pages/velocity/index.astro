@@ -9,7 +9,7 @@ import BoardSelector from '../../components/velocity/BoardSelector.astro';
 import VelocityChart from '../../components/velocity/VelocityChart.astro';
 import SprintMetrics from '../../components/velocity/SprintMetrics.astro';
 import VelocityTrends from '../../components/velocity/VelocityTrends.astro';
-import LoadingSpinner from '../../components/ui/LoadingSpinner.astro';
+
 import VelocityProgressLoader from '../../components/ui/VelocityProgressLoader.astro';
 import SprintIssuesModal from '../../components/velocity/SprintIssuesModal.astro';
 
@@ -238,72 +238,9 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
     }
   }
 
-  /**
-   * Fetches velocity summary (fast endpoint)
-   * Following Clean Code: Single responsibility, clear intent
-   */
-  async function fetchVelocitySummary(boardId: string): Promise<VelocityData | null> {
-    try {
-      const response = await fetch(`/api/velocity/${boardId}/summary`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Summary fetch failed:', error);
-      return null;
-    }
-  }
 
-  /**
-   * Fetches velocity data with real-time progress using Server-Sent Events
-   * Following Clean Code: Single responsibility, clear error handling
-   */
-  async function fetchVelocityDataWithProgress(boardId: string, limit?: number): Promise<VelocityData | null> {
-    return new Promise((resolve, reject) => {
-      const url = limit 
-        ? `/api/velocity/${boardId}/progress?limit=${limit}`
-        : `/api/velocity/${boardId}/progress`;
-        
-      const eventSource = new EventSource(url);
-      
-      eventSource.onmessage = (event) => {
-        try {
-          const progressData = JSON.parse(event.data);
-          
-          switch (progressData.type) {
-            case 'progress':
-              updateProgressLoader(progressData);
-              break;
-              
-            case 'complete':
-              updateProgressLoader(progressData);
-              eventSource.close();
-              resolve(progressData.data);
-              break;
-              
-            case 'error':
-              updateProgressLoader(progressData);
-              eventSource.close();
-              reject(new Error(progressData.message));
-              break;
-          }
-        } catch (error) {
-          console.error('Error parsing progress data:', error);
-          eventSource.close();
-          reject(error);
-        }
-      };
-      
-      eventSource.onerror = (error) => {
-        console.error('EventSource error:', error);
-        eventSource.close();
-        reject(new Error('Connection error during velocity calculation'));
-      };
-    });
-  }
+
+
 
   /**
    * Updates the progress loader with current progress data
@@ -841,7 +778,7 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
    * Opens the sprint issues modal
    * Following Clean Code: Clear intent, parameter validation
    */
-  function openSprintModal(sprintId: string, sprintName: string) {
+  function openSprintModal(sprintId: string, _sprintName: string) {
     if (!sprintId) {
       console.error('Sprint ID is required');
       return;

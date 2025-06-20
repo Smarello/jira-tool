@@ -225,7 +225,8 @@ function runTests() {
     console.log('');
     
     // Test 2: Database persistence logic
-    const { closedSprintsWithIssues, velocityDataMap } = testDatabasePersistenceLogic(batchResult);
+    // const { closedSprintsWithIssues, velocityDataMap } = testDatabasePersistenceLogic(batchResult);
+    testDatabasePersistenceLogic(batchResult);
     console.log('');
     
     // Test 3: Error handling

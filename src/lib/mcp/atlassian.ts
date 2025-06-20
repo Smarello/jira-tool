@@ -12,7 +12,7 @@ import { JiraBoardsApi } from '../jira/boards-api.js';
 import { JiraSprintsApi } from '../jira/sprints-api.js';
 import { JiraIssuesApi } from '../jira/issues-api.js';
 import { JiraChangelogApi } from '../jira/changelog-api.js';
-import { JiraApiError } from '../jira/errors.js';
+
 
 /**
  * MCP Atlassian client interface

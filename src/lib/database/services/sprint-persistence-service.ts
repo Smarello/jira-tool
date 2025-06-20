@@ -6,9 +6,8 @@
 
 import type { JiraSprint } from '../../jira/boards';
 import type { JiraIssueWithPoints } from '../../jira/issues-api';
-import type { 
-  IClosedSprintsRepository, 
-  IBoardConfigurationRepository,
+import type {
+  IClosedSprintsRepository,
   CreateSprintData,
   SprintQueryFilters,
   PersistedSprint,
@@ -16,7 +15,7 @@ import type {
   SprintMetricsData
 } from '../repositories/interfaces';
 import type { ISprintIssuesRepository } from '../repositories/sprint-issues-repository';
-import { SprintEntity, SprintVelocity, SprintMetrics } from '../domain/sprint-domain';
+import { SprintEntity } from '../domain/sprint-domain';
 
 /**
  * Sprint persistence service configuration
@@ -60,7 +59,6 @@ export class SprintPersistenceService {
   constructor(
     private readonly sprintsRepository: IClosedSprintsRepository,
     private readonly issuesRepository: ISprintIssuesRepository,
-    private readonly boardConfigRepository: IBoardConfigurationRepository,
     private readonly config: SprintPersistenceConfig
   ) {}
 
@@ -342,12 +340,12 @@ export class SprintPersistenceService {
   }
 
   // Helper methods for metrics calculation
-  private calculateAverageCycleTime(issues: readonly JiraIssueWithPoints[]): number {
+  private calculateAverageCycleTime(_issues: readonly JiraIssueWithPoints[]): number {
     // Implementation would calculate actual cycle time from issue history
     return 0; // Placeholder
   }
 
-  private calculateAverageLeadTime(issues: readonly JiraIssueWithPoints[]): number {
+  private calculateAverageLeadTime(_issues: readonly JiraIssueWithPoints[]): number {
     // Implementation would calculate actual lead time from issue history
     return 0; // Placeholder
   }
@@ -359,27 +357,27 @@ export class SprintPersistenceService {
     return issues.length === 0 ? 0 : (bugs.length / issues.length) * 100;
   }
 
-  private calculateScopeChangeRate(sprint: JiraSprint, issues: readonly JiraIssueWithPoints[]): number {
+  private calculateScopeChangeRate(_sprint: JiraSprint, _issues: readonly JiraIssueWithPoints[]): number {
     // Implementation would track scope changes during sprint
     return 0; // Placeholder
   }
 
-  private calculateReworkRate(issues: readonly JiraIssueWithPoints[]): number {
+  private calculateReworkRate(_issues: readonly JiraIssueWithPoints[]): number {
     // Implementation would track rework from issue history
     return 0; // Placeholder
   }
 
-  private calculateFlowEfficiency(issues: readonly JiraIssueWithPoints[]): number {
+  private calculateFlowEfficiency(_issues: readonly JiraIssueWithPoints[]): number {
     // Implementation would calculate flow efficiency from status transitions
     return 0; // Placeholder
   }
 
-  private calculateTeamCapacity(issues: readonly JiraIssueWithPoints[]): number {
+  private calculateTeamCapacity(_issues: readonly JiraIssueWithPoints[]): number {
     // Implementation would calculate team capacity
     return 0; // Placeholder
   }
 
-  private calculateTeamUtilization(issues: readonly JiraIssueWithPoints[]): number {
+  private calculateTeamUtilization(_issues: readonly JiraIssueWithPoints[]): number {
     // Implementation would calculate team utilization
     return 0; // Placeholder
   }

@@ -4,7 +4,7 @@
  * Following Clean Code: Single responsibility, dependency injection
  */
 
-import { eq, and, gte, desc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { DatabaseConnection } from '../connection-factory';
 import { boardConfigurations } from '../schemas/turso-schema';
 import type { IBoardConfigurationRepository, BoardConfiguration } from './interfaces';

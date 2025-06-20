@@ -5,7 +5,7 @@
  */
 
 import type { JiraIssueWithPoints } from '../../jira/issues-api';
-import type { SprintIssuesEntity, NewSprintIssuesEntity } from '../schema';
+
 
 /**
  * Sprint issue query filters

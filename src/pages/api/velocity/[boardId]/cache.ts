@@ -69,7 +69,7 @@ export const GET: APIRoute = async ({ params }) => {
   }
 };
 
-export const POST: APIRoute = async ({ params, request }) => {
+export const POST: APIRoute = async ({ params }) => {
   const boardId = params.boardId;
 
   if (!boardId || typeof boardId !== 'string') {

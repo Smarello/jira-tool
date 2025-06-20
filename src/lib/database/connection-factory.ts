@@ -5,9 +5,7 @@
  */
 
 import { drizzle as drizzleTurso } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
-import { tursoSchema } from './schemas/turso-schema';
-import { createTursoConnection, createTursoConfigFromEnv, validateTursoConfig } from './utils/turso-connection';
+import { createTursoConnection, validateTursoConfig } from './utils/turso-connection';
 
 // Note: Other database imports will be added when implementing other providers
 // import { drizzle as drizzleD1 } from 'drizzle-orm/d1';

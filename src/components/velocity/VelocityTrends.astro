@@ -120,7 +120,7 @@ function getPredictabilityLabel(predictability: number): string {
                 <>
                   <div class="flex items-end justify-between h-40 space-x-2">
                     {/* closedSprints are sorted chronologically (oldest first), so .slice(-5) gets the most recent 5 */}
-                    {velocityData.closedSprints.slice(-5).map((sprintVelocity, index) => {
+                    {velocityData.closedSprints.slice(-5).map((sprintVelocity) => {
                       const recentClosedSprints = velocityData.closedSprints.slice(-5);
                       const maxVelocity = Math.max(...recentClosedSprints.map(sv => sv.velocityPoints));
                       const height = maxVelocity > 0 ? (sprintVelocity.velocityPoints / maxVelocity) * 100 : 0;

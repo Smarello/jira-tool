@@ -14,15 +14,7 @@ export interface Props {
 
 const { velocityData, loading = false } = Astro.props;
 
-// Helper function to format velocity trend
-function formatTrend(trend: string): string {
-  switch (trend) {
-    case 'increasing': return '📈 Increasing';
-    case 'decreasing': return '📉 Decreasing';
-    case 'stable': return '📊 Stable';
-    default: return '📊 Unknown';
-  }
-}
+
 
 // Helper function to get trend color
 function getTrendColor(trend: string): string {
@@ -197,7 +189,7 @@ function getTrendText(trend: string): string {
    * Opens the sprint issues modal
    * Following Clean Code: Clear intent, parameter validation
    */
-  function openSprintModal(sprintId: string, sprintName: string) {
+  function openSprintModal(sprintId: string, _sprintName: string) {
     if (!sprintId) {
       console.error('Sprint ID is required');
       return;

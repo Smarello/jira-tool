@@ -4,7 +4,7 @@
  * Following Clean Code: Single responsibility, dependency injection
  */
 
-import { eq, and, gte, lte, desc, sql, count, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte, desc, count, inArray } from 'drizzle-orm';
 import type { DatabaseConnection } from '../connection-factory';
 import { closedSprints } from '../schemas/turso-schema';
 import type { 
@@ -16,7 +16,7 @@ import type {
   SprintQueryFilters,
   SprintStatistics
 } from './interfaces';
-import type { JiraSprint } from '../../jira/boards';
+
 import type { JiraIssueWithPoints } from '../../jira/issues-api';
 
 /**
@@ -203,7 +203,7 @@ export class TursoClosedSprintsRepository implements IClosedSprintsRepository {
    * Gets sprint by ID with optional data inclusion
    * Following Clean Code: Single responsibility, null object pattern
    */
-  async getSprintById(sprintId: string, includeAllData = true): Promise<PersistedSprint | null> {
+  async getSprintById(sprintId: string): Promise<PersistedSprint | null> {
     try {
       const results = await this.db
         .select()

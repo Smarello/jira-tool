@@ -5,10 +5,9 @@
 
 import type { APIRoute } from 'astro';
 import { getMcpAtlassianClient } from '../../../lib/mcp/atlassian';
-import { calculateRealSprintsVelocity } from '../../../lib/velocity/calculator';
+
 import {
-  createEnhancedVelocityData,
-  type SprintVelocity
+  createEnhancedVelocityData
 } from '../../../lib/velocity/mock-calculator';
 import { getVelocityCacheService } from '../../../lib/services/velocity-cache-service';
 

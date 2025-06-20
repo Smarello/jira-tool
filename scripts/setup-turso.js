@@ -7,7 +7,7 @@
 
 import { execSync } from 'child_process';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+
 
 // Colors for console output
 const colors = {

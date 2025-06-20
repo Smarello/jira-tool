@@ -4,7 +4,7 @@
  * Following Clean Code: Single responsibility, dependency injection
  */
 
-import { eq, and, inArray, gte, lte, desc, count, sql } from 'drizzle-orm';
+import { eq, and, inArray, lte, desc, count, sql } from 'drizzle-orm';
 import type { DatabaseConnection } from '../connection-factory';
 import { sprintIssues } from '../schemas/turso-schema';
 import type { 

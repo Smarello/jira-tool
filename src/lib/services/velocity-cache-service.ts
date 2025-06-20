@@ -10,10 +10,9 @@ import type { McpAtlassianClient } from '../mcp/atlassian';
 import type { SprintVelocity } from '../velocity/mock-calculator';
 import { calculateRealSprintsVelocity } from '../velocity/calculator';
 import { getDatabaseService } from '../database';
-import type { 
-  SprintVelocityData, 
+import type {
   PersistedSprint,
-  SprintPersistenceConfig 
+  SprintPersistenceConfig
 } from '../database';
 
 /**
@@ -247,7 +246,7 @@ export class VelocityCacheService {
    */
   private async cacheClosedSprints(
     sprints: readonly JiraSprint[],
-    velocities: readonly SprintVelocity[],
+    _velocities: readonly SprintVelocity[],
     issuesApi: JiraIssuesApi
   ): Promise<void> {
     const closedSprints = sprints.filter(sprint => sprint.state === 'closed');
@@ -264,8 +263,8 @@ export class VelocityCacheService {
           // Get issues for this sprint
           const sprintIssues = await issuesApi.fetchSprintIssues(sprint.id);
           
-          // Find velocity data for this sprint
-          const velocityData = velocities.find(v => v.sprintId === sprint.id);
+          // Find velocity data for this sprint (currently unused)
+          // const velocityData = velocities.find(v => v.sprint.id === sprint.id);
           
           // Save to database
           console.error(`-----------> saving sprint ${sprint.id}`, sprint);
@@ -350,7 +349,7 @@ export class VelocityCacheService {
    */
   private async fetchAndCacheMissingSprints(
     missingSprintIds: readonly string[],
-    issuesApi: JiraIssuesApi
+    _issuesApi: JiraIssuesApi
   ): Promise<void> {
     console.log(`🔄 Fetching ${missingSprintIds.length} missing sprints from JIRA...`);
 

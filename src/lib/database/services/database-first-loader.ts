@@ -227,64 +227,7 @@ export class DatabaseFirstLoader {
     }
   }
 
-  /**
-   * Loads a single sprint from database with all related data (legacy method)
-   * Following Clean Code: Single responsibility, null object pattern
-   * @deprecated Use buildSprintFromDatabase with batch-loaded issues instead
-   */
-  private async loadSprintFromDatabase(sprint: JiraSprint): Promise<SprintFromDatabase | null> {
-    try {
-      // Load sprint data from database
-      const persistedSprint = await this.sprintsRepository.getSprintById(sprint.id, true);
 
-      if (!persistedSprint) {
-        return null;
-      }
-
-      // Load issues if enabled
-      let issues: readonly JiraIssueWithPoints[] = [];
-      if (this.config.enableIssuesLoading) {
-        try {
-          issues = await this.issuesRepository.getSprintIssues(sprint.id);
-          console.log(`[DatabaseFirst] Loaded ${issues.length} issues for sprint ${sprint.name} from database`);
-        } catch (error) {
-          console.warn(`[DatabaseFirst] Failed to load issues for sprint ${sprint.id}:`, error);
-          // Continue without issues rather than failing completely
-        }
-      }
-
-      // Extract velocity data if available
-      let velocityData: SprintFromDatabase['velocityData'];
-      if (this.config.enableVelocityDataLoading && persistedSprint.velocityData) {
-        try {
-          const parsed = typeof persistedSprint.velocityData === 'string'
-            ? JSON.parse(persistedSprint.velocityData)
-            : persistedSprint.velocityData;
-
-          velocityData = {
-            committedPoints: parsed.committedPoints || 0,
-            completedPoints: parsed.completedPoints || 0,
-            issuesCount: parsed.issuesCount || issues.length,
-            completedIssuesCount: parsed.completedIssuesCount || 0
-          };
-        } catch (error) {
-          console.warn(`[DatabaseFirst] Failed to parse velocity data for sprint ${sprint.id}:`, error);
-        }
-      }
-
-      return {
-        sprint,
-        issues,
-        velocityData,
-        fromDatabase: true,
-        preValidated: true
-      };
-
-    } catch (error) {
-      console.error(`[DatabaseFirst] Failed to load sprint ${sprint.id} from database:`, error);
-      return null;
-    }
-  }
 
   /**
    * Converts database sprint data to velocity format

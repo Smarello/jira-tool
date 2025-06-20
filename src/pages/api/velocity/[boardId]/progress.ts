@@ -6,9 +6,8 @@
 import type { APIRoute } from 'astro';
 import { getMcpAtlassianClient } from '../../../../lib/mcp/atlassian';
 import { calculateRealSprintsVelocityWithProgress } from '../../../../lib/velocity/calculator';
-import { 
-  createEnhancedVelocityData,
-  type SprintVelocity 
+import {
+  createEnhancedVelocityData
 } from '../../../../lib/velocity/mock-calculator';
 
 /**
@@ -25,7 +24,7 @@ interface ProgressEvent {
   readonly data?: any;
 }
 
-export const GET: APIRoute = async ({ params, request, url }) => {
+export const GET: APIRoute = async ({ params, url }) => {
   const boardId = params.boardId;
   
   // Validate required parameter

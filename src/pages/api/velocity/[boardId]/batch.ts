@@ -12,7 +12,7 @@ import {
 } from '../../../../lib/velocity/calculator';
 import { getCachedData, setCachedData } from '../../../../lib/utils/cache';
 import { CACHE_TTL } from '../../../../lib/utils/constants';
-import { initializeDatabaseService, getRepositoryFactory, initializeRepositoryFactory } from '../../../../lib/database';
+import { initializeDatabaseService, getRepositoryFactory } from '../../../../lib/database';
 import { createDatabaseFirstLoader } from '../../../../lib/database/services/database-first-loader';
 
 // Load environment variables explicitly for Astro

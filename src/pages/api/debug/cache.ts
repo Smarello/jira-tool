@@ -6,7 +6,7 @@
 import type { APIRoute } from 'astro';
 import { getBoardCacheStats, clearBoardDoneStatusCache } from '../../../lib/velocity/board-cache';
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async () => {
   try {
     const cacheStats = getBoardCacheStats();
     

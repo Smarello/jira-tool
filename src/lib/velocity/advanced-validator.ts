@@ -90,7 +90,7 @@ export async function validateIssuesForVelocity(
   const results: AdvancedValidationResult[] = [];
   
   // Clear changelog cache at the start of validation
-  const changelogApi = mcpClient.getChangelogApi();
+  // const changelogApi = mcpClient.getChangelogApi();
   //changelogApi.clearCache();
   
   // Process issues sequentially with pre-fetched status IDs - NO MORE API CALLS!
