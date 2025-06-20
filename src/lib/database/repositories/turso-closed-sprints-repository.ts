@@ -4,7 +4,7 @@
  * Following Clean Code: Single responsibility, dependency injection
  */
 
-import { eq, and, gte, lte, desc, sql, count } from 'drizzle-orm';
+import { eq, and, gte, lte, desc, sql, count, inArray } from 'drizzle-orm';
 import type { DatabaseConnection } from '../connection-factory';
 import { closedSprints } from '../schemas/turso-schema';
 import type { 
@@ -177,6 +177,25 @@ export class TursoClosedSprintsRepository implements IClosedSprintsRepository {
       return result.length > 0;
     } catch (error) {
       throw new Error(`Failed to check sprint existence: ${error}`);
+    }
+  }
+
+  /**
+   * Checks which sprints exist in the database (batch operation)
+   * Following Clean Code: Batch operations for efficiency
+   */
+  async checkMultipleSprintsExist(sprintIds: readonly string[]): Promise<Set<string>> {
+    if (sprintIds.length === 0) return new Set();
+
+    try {
+      const results = await this.db
+        .select({ id: closedSprints.id })
+        .from(closedSprints)
+        .where(inArray(closedSprints.id, sprintIds as string[]));
+
+      return new Set(results.map(result => result.id));
+    } catch (error) {
+      throw new Error(`Failed to check multiple sprints existence: ${error}`);
     }
   }
 

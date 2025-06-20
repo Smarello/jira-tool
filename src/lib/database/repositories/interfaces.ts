@@ -155,6 +155,12 @@ export interface IClosedSprintsRepository {
   sprintExists(sprintId: string): Promise<boolean>;
 
   /**
+   * Checks which sprints exist in the database (batch operation)
+   * Following Clean Code: Batch operations for efficiency
+   */
+  checkMultipleSprintsExist(sprintIds: readonly string[]): Promise<Set<string>>;
+
+  /**
    * Gets sprint by ID with optional data inclusion
    * Following Clean Code: Single responsibility
    */

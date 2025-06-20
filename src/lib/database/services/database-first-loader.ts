@@ -50,6 +50,7 @@ export interface SprintFromDatabase {
     readonly completedIssuesCount: number;
   };
   readonly fromDatabase: true; // Marker to distinguish from API data
+  readonly preValidated: true; // Issues have completion dates and can be validated without API calls
 }
 
 /**
@@ -74,54 +75,100 @@ export class DatabaseFirstLoader {
   ) {}
 
   /**
-   * Loads sprint data using database-first strategy
-   * Following Clean Code: Express intent, single responsibility
+   * Loads sprint data using database-first strategy with batch operations
+   * Following Clean Code: Express intent, single responsibility, batch optimization
    */
   async loadSprintsWithDatabaseFirst(
     sprints: readonly JiraSprint[]
   ): Promise<DatabaseFirstResult> {
-    console.log(`[DatabaseFirst] Starting database-first loading for ${sprints.length} sprints`);
+    console.log(`[DatabaseFirst] Starting optimized database-first loading for ${sprints.length} sprints`);
 
     const sprintsFromDatabase: SprintFromDatabase[] = [];
     const sprintsToLoadFromApi: JiraSprint[] = [];
 
-    // Check each sprint in the database
-    for (const sprint of sprints) {
-      try {
-        // Only check closed sprints in database
-        if (sprint.state !== 'closed') {
-          sprintsToLoadFromApi.push(sprint);
-          continue;
-        }
+    // Separate closed sprints from non-closed sprints
+    const closedSprints = sprints.filter(sprint => sprint.state === 'closed');
+    const nonClosedSprints = sprints.filter(sprint => sprint.state !== 'closed');
 
-        const existsInDb = await this.sprintsRepository.sprintExists(sprint.id);
-        
-        if (existsInDb) {
-          console.log(`[DatabaseFirst] Loading sprint ${sprint.name} from database`);
-          const sprintFromDb = await this.loadSprintFromDatabase(sprint);
-          
-          if (sprintFromDb) {
-            sprintsFromDatabase.push(sprintFromDb);
-          } else {
-            // Failed to load from database, fallback to API
-            sprintsToLoadFromApi.push(sprint);
-          }
-        } else {
-          console.log(`[DatabaseFirst] Sprint ${sprint.name} not found in database, will load from API`);
-          sprintsToLoadFromApi.push(sprint);
-        }
-      } catch (error) {
-        console.warn(`[DatabaseFirst] Error checking sprint ${sprint.id} in database:`, error);
-        // On error, fallback to API loading
-        sprintsToLoadFromApi.push(sprint);
-      }
+    // Non-closed sprints always go to API
+    sprintsToLoadFromApi.push(...nonClosedSprints);
+
+    if (closedSprints.length === 0) {
+      console.log(`[DatabaseFirst] No closed sprints to check in database`);
+      return {
+        sprintsFromDatabase,
+        sprintsToLoadFromApi,
+        databaseHitRate: 0
+      };
     }
 
-    const databaseHitRate = sprints.length > 0 
-      ? (sprintsFromDatabase.length / sprints.length) * 100 
+    try {
+      // BATCH OPTIMIZATION 1: Check existence of all closed sprints in one query
+      console.log(`[DatabaseFirst] Batch checking existence of ${closedSprints.length} closed sprints...`);
+      const closedSprintIds = closedSprints.map(sprint => sprint.id);
+      const existingSprintIds = await this.sprintsRepository.checkMultipleSprintsExist(closedSprintIds);
+
+      console.log(`[DatabaseFirst] Found ${existingSprintIds.size} existing sprints in database`);
+
+      // Separate existing vs missing sprints
+      const existingSprints: JiraSprint[] = [];
+      const missingSprints: JiraSprint[] = [];
+
+      for (const sprint of closedSprints) {
+        if (existingSprintIds.has(sprint.id)) {
+          existingSprints.push(sprint);
+        } else {
+          console.log(`[DatabaseFirst] Sprint ${sprint.name} not found in database, will load from API`);
+          missingSprints.push(sprint);
+        }
+      }
+
+      sprintsToLoadFromApi.push(...missingSprints);
+
+      if (existingSprints.length > 0) {
+        // BATCH OPTIMIZATION 2: Load all issues for existing sprints in one query
+        console.log(`[DatabaseFirst] Batch loading issues for ${existingSprints.length} existing sprints...`);
+        const existingSprintIds = existingSprints.map(sprint => sprint.id);
+
+        let allIssuesMap = new Map<string, readonly JiraIssueWithPoints[]>();
+        if (this.config.enableIssuesLoading) {
+          allIssuesMap = await this.issuesRepository.getMultipleSprintIssues(existingSprintIds);
+          console.log(`[DatabaseFirst] Loaded issues for ${allIssuesMap.size} sprints from database`);
+        }
+
+        // Build sprint data from database
+        for (const sprint of existingSprints) {
+          try {
+            const sprintFromDb = await this.buildSprintFromDatabase(
+              sprint,
+              allIssuesMap.get(sprint.id) || []
+            );
+
+            if (sprintFromDb) {
+              sprintsFromDatabase.push(sprintFromDb);
+              console.log(`[DatabaseFirst] Loaded sprint ${sprint.name} from database with ${sprintFromDb.issues.length} issues`);
+            } else {
+              // Failed to build from database, fallback to API
+              sprintsToLoadFromApi.push(sprint);
+            }
+          } catch (error) {
+            console.warn(`[DatabaseFirst] Error building sprint ${sprint.id} from database:`, error);
+            sprintsToLoadFromApi.push(sprint);
+          }
+        }
+      }
+
+    } catch (error) {
+      console.error(`[DatabaseFirst] Batch database operations failed:`, error);
+      // On batch error, fallback all closed sprints to API
+      sprintsToLoadFromApi.push(...closedSprints);
+    }
+
+    const databaseHitRate = sprints.length > 0
+      ? (sprintsFromDatabase.length / sprints.length) * 100
       : 0;
 
-    console.log(`[DatabaseFirst] Database hit rate: ${databaseHitRate.toFixed(1)}% (${sprintsFromDatabase.length}/${sprints.length})`);
+    console.log(`[DatabaseFirst] Optimized database hit rate: ${databaseHitRate.toFixed(1)}% (${sprintsFromDatabase.length}/${sprints.length})`);
     console.log(`[DatabaseFirst] Sprints to load from API: ${sprintsToLoadFromApi.length}`);
 
     return {
@@ -132,14 +179,64 @@ export class DatabaseFirstLoader {
   }
 
   /**
-   * Loads a single sprint from database with all related data
+   * Builds sprint data from database using pre-loaded issues (batch optimized)
    * Following Clean Code: Single responsibility, null object pattern
+   */
+  private async buildSprintFromDatabase(
+    sprint: JiraSprint,
+    issues: readonly JiraIssueWithPoints[]
+  ): Promise<SprintFromDatabase | null> {
+    try {
+      // Load sprint metadata from database
+      const persistedSprint = await this.sprintsRepository.getSprintById(sprint.id, true);
+
+      if (!persistedSprint) {
+        return null;
+      }
+
+      // Extract velocity data if available
+      let velocityData: SprintFromDatabase['velocityData'];
+      if (this.config.enableVelocityDataLoading && persistedSprint.velocityData) {
+        try {
+          const parsed = typeof persistedSprint.velocityData === 'string'
+            ? JSON.parse(persistedSprint.velocityData)
+            : persistedSprint.velocityData;
+
+          velocityData = {
+            committedPoints: parsed.committedPoints || 0,
+            completedPoints: parsed.completedPoints || 0,
+            issuesCount: parsed.issuesCount || issues.length,
+            completedIssuesCount: parsed.completedIssuesCount || 0
+          };
+        } catch (error) {
+          console.warn(`[DatabaseFirst] Failed to parse velocity data for sprint ${sprint.id}:`, error);
+        }
+      }
+
+      return {
+        sprint,
+        issues,
+        velocityData,
+        fromDatabase: true,
+        preValidated: true
+      };
+
+    } catch (error) {
+      console.error(`[DatabaseFirst] Failed to build sprint ${sprint.id} from database:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Loads a single sprint from database with all related data (legacy method)
+   * Following Clean Code: Single responsibility, null object pattern
+   * @deprecated Use buildSprintFromDatabase with batch-loaded issues instead
    */
   private async loadSprintFromDatabase(sprint: JiraSprint): Promise<SprintFromDatabase | null> {
     try {
       // Load sprint data from database
       const persistedSprint = await this.sprintsRepository.getSprintById(sprint.id, true);
-      
+
       if (!persistedSprint) {
         return null;
       }
@@ -160,10 +257,10 @@ export class DatabaseFirstLoader {
       let velocityData: SprintFromDatabase['velocityData'];
       if (this.config.enableVelocityDataLoading && persistedSprint.velocityData) {
         try {
-          const parsed = typeof persistedSprint.velocityData === 'string' 
+          const parsed = typeof persistedSprint.velocityData === 'string'
             ? JSON.parse(persistedSprint.velocityData)
             : persistedSprint.velocityData;
-          
+
           velocityData = {
             committedPoints: parsed.committedPoints || 0,
             completedPoints: parsed.completedPoints || 0,
@@ -179,7 +276,8 @@ export class DatabaseFirstLoader {
         sprint,
         issues,
         velocityData,
-        fromDatabase: true
+        fromDatabase: true,
+        preValidated: true
       };
 
     } catch (error) {

@@ -115,6 +115,9 @@ export interface SprintIssuesEntity {
   readonly updated: string;
   readonly resolved: string | null;
 
+  // Completion tracking for velocity validation
+  readonly completionDate: string | null; // When issue moved to last kanban column
+
   // Additional data as JSON
   readonly customFields: string | null;
   readonly statusHistory: string | null; // JSON array of status changes
@@ -140,6 +143,7 @@ export interface NewSprintIssuesEntity {
   readonly created: string;
   readonly updated: string;
   readonly resolved?: string | null;
+  readonly completionDate?: string | null; // When issue moved to last kanban column
   readonly customFields?: string | null;
   readonly statusHistory?: string | null;
   readonly createdAt?: string;

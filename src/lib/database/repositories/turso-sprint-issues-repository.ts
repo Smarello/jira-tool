@@ -4,7 +4,7 @@
  * Following Clean Code: Single responsibility, dependency injection
  */
 
-import { eq, and, inArray, gte, lte, desc, count } from 'drizzle-orm';
+import { eq, and, inArray, gte, lte, desc, count, sql } from 'drizzle-orm';
 import type { DatabaseConnection } from '../connection-factory';
 import { sprintIssues } from '../schemas/turso-schema';
 import type { 
@@ -42,6 +42,7 @@ export class TursoSprintIssuesRepository implements ISprintIssuesRepository {
         created: issue.created,
         updated: issue.updated,
         resolved: issue.resolved || null,
+        completionDate: issue.completionDate || null,
         customFields: null, // Will be implemented when needed
         statusHistory: null, // Will be implemented when needed
         updatedAt: new Date().toISOString(),
@@ -50,14 +51,15 @@ export class TursoSprintIssuesRepository implements ISprintIssuesRepository {
       await this.db.insert(sprintIssues).values(values).onConflictDoUpdate({
         target: sprintIssues.id,
         set: {
-          summary: values[0].summary, // This will be overridden by each value
-          status: values[0].status,
-          issueType: values[0].issueType,
-          storyPoints: values[0].storyPoints,
-          assignee: values[0].assignee,
-          updated: values[0].updated,
-          resolved: values[0].resolved,
-          updatedAt: new Date().toISOString(),
+          summary: sql`excluded.summary`,
+          status: sql`excluded.status`,
+          issueType: sql`excluded.issue_type`,
+          storyPoints: sql`excluded.story_points`,
+          assignee: sql`excluded.assignee`,
+          updated: sql`excluded.updated`,
+          resolved: sql`excluded.resolved`,
+          completionDate: sql`excluded.completion_date`,
+          updatedAt: sql`excluded.updated_at`,
         }
       });
     } catch (error) {
@@ -87,6 +89,7 @@ export class TursoSprintIssuesRepository implements ISprintIssuesRepository {
           created: issue.created,
           updated: issue.updated,
           resolved: issue.resolved || null,
+          completionDate: issue.completionDate || null,
           customFields: null,
           statusHistory: null,
           updatedAt: new Date().toISOString(),
@@ -316,6 +319,7 @@ export class TursoSprintIssuesRepository implements ISprintIssuesRepository {
           assignee: typeof issue.assignee === 'string' ? issue.assignee : issue.assignee?.displayName || null,
           updated: issue.updated,
           resolved: issue.resolved || null,
+          completionDate: issue.completionDate || null,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(sprintIssues.issueKey, issueKey));
@@ -425,6 +429,7 @@ export class TursoSprintIssuesRepository implements ISprintIssuesRepository {
       reporter: { displayName: 'Unknown' },
       storyPoints: entity.storyPoints,
       statusCategoryChangedDate: null,
+      completionDate: entity.completionDate,
       created: entity.created,
       updated: entity.updated,
       resolved: entity.resolved,

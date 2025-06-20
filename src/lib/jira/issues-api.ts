@@ -19,6 +19,7 @@ export interface StoryPointsData {
 export interface JiraIssueWithPoints extends JiraIssue {
   readonly storyPoints: number | null;
   readonly statusCategoryChangedDate: string | null;
+  readonly completionDate?: string | null; // When issue moved to last kanban column
 }
 
 /**

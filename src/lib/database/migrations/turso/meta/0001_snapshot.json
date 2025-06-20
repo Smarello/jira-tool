@@ -1,0 +1,482 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "edf74e53-41e5-4ff0-b911-f71389088395",
+  "prevId": "8ee74e6e-1b6e-4a30-af56-0842486e64d5",
+  "tables": {
+    "board_configurations": {
+      "name": "board_configurations",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "project_key": {
+          "name": "project_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "done_status_ids": {
+          "name": "done_status_ids",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "story_points_field": {
+          "name": "story_points_field",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "custom_fields": {
+          "name": "custom_fields",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_fetched": {
+          "name": "last_fetched",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(datetime('now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(datetime('now'))"
+        }
+      },
+      "indexes": {
+        "idx_board_configurations_project_key": {
+          "name": "idx_board_configurations_project_key",
+          "columns": [
+            "project_key"
+          ],
+          "isUnique": false
+        },
+        "idx_board_configurations_type": {
+          "name": "idx_board_configurations_type",
+          "columns": [
+            "type"
+          ],
+          "isUnique": false
+        },
+        "idx_board_configurations_is_active": {
+          "name": "idx_board_configurations_is_active",
+          "columns": [
+            "is_active"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "closed_sprints": {
+      "name": "closed_sprints",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "board_id": {
+          "name": "board_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "complete_date": {
+          "name": "complete_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "goal": {
+          "name": "goal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "origin_board_id": {
+          "name": "origin_board_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "velocity_data": {
+          "name": "velocity_data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "issues_data": {
+          "name": "issues_data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "metrics_data": {
+          "name": "metrics_data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(datetime('now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(datetime('now'))"
+        }
+      },
+      "indexes": {
+        "idx_closed_sprints_board_id": {
+          "name": "idx_closed_sprints_board_id",
+          "columns": [
+            "board_id"
+          ],
+          "isUnique": false
+        },
+        "idx_closed_sprints_complete_date": {
+          "name": "idx_closed_sprints_complete_date",
+          "columns": [
+            "complete_date"
+          ],
+          "isUnique": false
+        },
+        "idx_closed_sprints_state": {
+          "name": "idx_closed_sprints_state",
+          "columns": [
+            "state"
+          ],
+          "isUnique": false
+        },
+        "idx_closed_sprints_origin_board_id": {
+          "name": "idx_closed_sprints_origin_board_id",
+          "columns": [
+            "origin_board_id"
+          ],
+          "isUnique": false
+        },
+        "idx_closed_sprints_board_date": {
+          "name": "idx_closed_sprints_board_date",
+          "columns": [
+            "board_id",
+            "complete_date"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "sprint_issues": {
+      "name": "sprint_issues",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sprint_id": {
+          "name": "sprint_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "issue_key": {
+          "name": "issue_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "issue_id": {
+          "name": "issue_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "issue_type": {
+          "name": "issue_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "story_points": {
+          "name": "story_points",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "assignee": {
+          "name": "assignee",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created": {
+          "name": "created",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated": {
+          "name": "updated",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "resolved": {
+          "name": "resolved",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "completion_date": {
+          "name": "completion_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "custom_fields": {
+          "name": "custom_fields",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status_history": {
+          "name": "status_history",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(datetime('now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(datetime('now'))"
+        }
+      },
+      "indexes": {
+        "idx_sprint_issues_sprint_id": {
+          "name": "idx_sprint_issues_sprint_id",
+          "columns": [
+            "sprint_id"
+          ],
+          "isUnique": false
+        },
+        "idx_sprint_issues_issue_key": {
+          "name": "idx_sprint_issues_issue_key",
+          "columns": [
+            "issue_key"
+          ],
+          "isUnique": false
+        },
+        "idx_sprint_issues_status": {
+          "name": "idx_sprint_issues_status",
+          "columns": [
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_sprint_issues_issue_type": {
+          "name": "idx_sprint_issues_issue_type",
+          "columns": [
+            "issue_type"
+          ],
+          "isUnique": false
+        },
+        "idx_sprint_issues_assignee": {
+          "name": "idx_sprint_issues_assignee",
+          "columns": [
+            "assignee"
+          ],
+          "isUnique": false
+        },
+        "idx_sprint_issues_resolved": {
+          "name": "idx_sprint_issues_resolved",
+          "columns": [
+            "resolved"
+          ],
+          "isUnique": false
+        },
+        "idx_sprint_issues_completion_date": {
+          "name": "idx_sprint_issues_completion_date",
+          "columns": [
+            "completion_date"
+          ],
+          "isUnique": false
+        },
+        "idx_sprint_issues_sprint_status": {
+          "name": "idx_sprint_issues_sprint_status",
+          "columns": [
+            "sprint_id",
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_sprint_issues_sprint_type": {
+          "name": "idx_sprint_issues_sprint_type",
+          "columns": [
+            "sprint_id",
+            "issue_type"
+          ],
+          "isUnique": false
+        },
+        "idx_sprint_issues_sprint_completion": {
+          "name": "idx_sprint_issues_sprint_completion",
+          "columns": [
+            "sprint_id",
+            "completion_date"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

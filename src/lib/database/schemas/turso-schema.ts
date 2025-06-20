@@ -98,6 +98,9 @@ export const sprintIssues = sqliteTable(
     created: text('created').notNull(),
     updated: text('updated').notNull(),
     resolved: text('resolved'),
+
+    // Completion tracking for velocity validation
+    completionDate: text('completion_date'), // When issue moved to last kanban column
     
     // Additional data as JSON
     customFields: text('custom_fields'),   // JSON: additional fields
@@ -115,9 +118,11 @@ export const sprintIssues = sqliteTable(
     issueTypeIdx: index('idx_sprint_issues_issue_type').on(table.issueType),
     assigneeIdx: index('idx_sprint_issues_assignee').on(table.assignee),
     resolvedIdx: index('idx_sprint_issues_resolved').on(table.resolved),
+    completionDateIdx: index('idx_sprint_issues_completion_date').on(table.completionDate),
     // Composite indexes for common queries
     sprintStatusIdx: index('idx_sprint_issues_sprint_status').on(table.sprintId, table.status),
     sprintTypeIdx: index('idx_sprint_issues_sprint_type').on(table.sprintId, table.issueType),
+    sprintCompletionIdx: index('idx_sprint_issues_sprint_completion').on(table.sprintId, table.completionDate),
   })
 );
 

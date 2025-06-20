@@ -9,6 +9,11 @@ import type { McpAtlassianClient } from '../mcp/atlassian.js';
 import { calculateSprintVelocity, type SprintVelocity } from './mock-calculator.js';
 import { batchValidateSprintVelocity } from './batch-validator.js';
 import type { SprintFromDatabase } from '../database/services/database-first-loader.js';
+import { extractCompletionDatesForSprint } from './completion-date-extractor.js';
+import {
+  batchCalculateSprintVelocityWithDatabase,
+  issuesHaveCompletionDates
+} from './database-validator.js';
 
 /**
  * Extended result type that includes both velocity and issues data
@@ -193,12 +198,26 @@ export async function calculateRealSprintsVelocityWithIssues(
 ): Promise<BatchVelocityResult> {
   console.log(`[Calculator] Starting velocity calculation with issues data for ${sprints.length} sprints`);
 
-  // Fetch issues for all sprints
+  // Fetch issues for all sprints and extract completion dates
   const sprintIssuesPairs = [];
   for (const sprint of sprints) {
     try {
       console.log(`[Calculator] Fetching issues for sprint ${sprint.name}`);
-      const issues = await issuesApi.fetchSprintIssues(sprint.id);
+      const rawIssues = await issuesApi.fetchSprintIssues(sprint.id);
+
+      // Extract completion dates for the issues
+      const issuesWithCompletion = await extractCompletionDatesForSprint(
+        rawIssues,
+        sprint.originBoardId,
+        mcpClient
+      );
+
+      // Convert back to JiraIssueWithPoints format (completion date is now included)
+      const issues: JiraIssueWithPoints[] = issuesWithCompletion.map(issue => ({
+        ...issue,
+        completionDate: issue.completionDate
+      }));
+
       sprintIssuesPairs.push({ sprint, issues });
     } catch (error) {
       console.warn(`[Calculator] Failed to fetch issues for sprint ${sprint.id}:`, error);
@@ -256,29 +275,65 @@ export async function calculateMixedSprintsVelocityWithIssues(
   const allVelocities: SprintVelocity[] = [];
   const allSprintIssuesMap = new Map<string, readonly JiraIssueWithPoints[]>();
 
-  // Process database sprints (no API calls needed)
-  for (const sprintFromDb of sprintsFromDatabase) {
-    console.log(`[Calculator] Processing database sprint: ${sprintFromDb.sprint.name}`);
+  // Process database sprints using optimized validation (NO API CALLS)
+  if (sprintsFromDatabase.length > 0) {
+    console.log(`[Calculator] Processing ${sprintsFromDatabase.length} database sprints with optimized validation (NO API CALLS)`);
 
-    // Convert database sprint to velocity format
-    const velocity: SprintVelocity = {
+    // Check if database sprints have completion dates for optimized validation
+    const sprintIssuesPairs = sprintsFromDatabase.map(sprintFromDb => ({
       sprint: sprintFromDb.sprint,
-      committedPoints: sprintFromDb.velocityData?.committedPoints || 0,
-      completedPoints: sprintFromDb.velocityData?.completedPoints || 0,
-      velocityPoints: sprintFromDb.velocityData?.completedPoints || 0,
-      completionRate: sprintFromDb.velocityData?.committedPoints
-        ? (sprintFromDb.velocityData.completedPoints / sprintFromDb.velocityData.committedPoints) * 100
-        : 0
-    };
+      issues: sprintFromDb.issues
+    }));
 
-    allVelocities.push(velocity);
-    allSprintIssuesMap.set(sprintFromDb.sprint.id, sprintFromDb.issues);
+    // Use database validation if issues have completion dates
+    const hasCompletionDates = sprintIssuesPairs.some(pair =>
+      issuesHaveCompletionDates(pair.issues)
+    );
+
+    if (hasCompletionDates) {
+      console.log(`[Calculator] Using database validation (NO API CALLS) for ${sprintsFromDatabase.length} sprints`);
+      const databaseValidationResults = batchCalculateSprintVelocityWithDatabase(sprintIssuesPairs);
+
+      for (const result of databaseValidationResults) {
+        const sprintFromDb = sprintsFromDatabase.find(ds => ds.sprint.id === result.sprintId)!;
+        const velocity: SprintVelocity = {
+          sprint: sprintFromDb.sprint,
+          committedPoints: result.totalPoints,
+          completedPoints: result.validPoints,
+          velocityPoints: result.validPoints,
+          completionRate: result.totalPoints > 0 ? (result.validPoints / result.totalPoints) * 100 : 0
+        };
+
+        allVelocities.push(velocity);
+        allSprintIssuesMap.set(sprintFromDb.sprint.id, sprintFromDb.issues);
+      }
+    } else {
+      // Fallback to pre-calculated velocity data or basic calculation
+      for (const sprintFromDb of sprintsFromDatabase) {
+        console.log(`[Calculator] Processing database sprint: ${sprintFromDb.sprint.name}`);
+
+        // Convert database sprint to velocity format
+        const velocity: SprintVelocity = {
+          sprint: sprintFromDb.sprint,
+          committedPoints: sprintFromDb.velocityData?.committedPoints || 0,
+          completedPoints: sprintFromDb.velocityData?.completedPoints || 0,
+          velocityPoints: sprintFromDb.velocityData?.completedPoints || 0,
+          completionRate: sprintFromDb.velocityData?.committedPoints
+            ? (sprintFromDb.velocityData.completedPoints / sprintFromDb.velocityData.committedPoints) * 100
+            : 0
+        };
+
+        allVelocities.push(velocity);
+        allSprintIssuesMap.set(sprintFromDb.sprint.id, sprintFromDb.issues);
+      }
+    }
   }
 
-  // Process API sprints (if any)
+  // Process API sprints (if any) - EXTRACT COMPLETION DATES!
   if (sprintsToLoadFromApi.length > 0) {
-    console.log(`[Calculator] Loading ${sprintsToLoadFromApi.length} sprints from API...`);
+    console.log(`[Calculator] Loading ${sprintsToLoadFromApi.length} sprints from API with completion date extraction...`);
 
+    // Use the version that extracts completion dates!
     const apiResult = await calculateRealSprintsVelocityWithIssues(
       sprintsToLoadFromApi,
       issuesApi,
