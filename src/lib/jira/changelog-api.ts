@@ -157,33 +157,7 @@ export class JiraChangelogApi {
     return null;
   }
 
-  /**
-   * Finds the date when an issue was moved to a specific status
-   * Following Clean Code: Express intent, single responsibility
-   * @deprecated Use findStatusTransitionDateById for better reliability
-   * Note: This function uses pre-sorted data from cache for better performance
-   */
-  async findStatusTransitionDate(
-    issueKey: string, 
-    targetStatusNames: readonly string[]
-  ): Promise<string | null> {
-    const changelog = await this.fetchIssueChangelog(issueKey);
-    
-    // Use pre-sorted histories from cache (no need to sort again)
-    // Search through pre-sorted changelog history (oldest first)
-    // This finds the first transition to target status
-    for (const history of changelog.histories) {
-      for (const item of history.items) {
-        if (item.field === 'status' && 
-            item.toString && 
-            targetStatusNames.includes(item.toString)) {
-          return history.created;
-        }
-      }
-    }
-    
-    return null;
-  }
+
 
   /**
    * Finds the date when an issue was moved to any "Done" status for a board using status IDs
@@ -196,17 +170,7 @@ export class JiraChangelogApi {
     return this.findStatusTransitionDateById(issueKey, doneStatusIds);
   }
 
-  /**
-   * Finds the date when an issue was moved to any "Done" status for a board
-   * Following Clean Code: Express intent, single responsibility
-   * @deprecated Use findDoneColumnTransitionDateById for better reliability
-   */
-  async findDoneColumnTransitionDate(
-    issueKey: string, 
-    doneStatusNames: readonly string[]
-  ): Promise<string | null> {
-    return this.findStatusTransitionDate(issueKey, doneStatusNames);
-  }
+
 
   /**
    * Checks if an issue was in Done status at a specific date using status IDs
@@ -229,25 +193,5 @@ export class JiraChangelogApi {
     return transitionDateTime <= targetDateTime;
   }
 
-  /**
-   * Checks if an issue was in Done status at a specific date
-   * Following Clean Code: Express intent, single responsibility
-   * @deprecated Use wasIssueInDoneAtDateById for better reliability
-   */
-  async wasIssueInDoneAtDate(
-    issueKey: string,
-    doneStatusNames: readonly string[],
-    targetDate: string
-  ): Promise<boolean> {
-    const transitionDate = await this.findDoneColumnTransitionDate(issueKey, doneStatusNames);
-    
-    if (!transitionDate) {
-      return false;
-    }
-    
-    const transitionDateTime = new Date(transitionDate);
-    const targetDateTime = new Date(targetDate);
-    
-    return transitionDateTime <= targetDateTime;
-  }
+
 } 

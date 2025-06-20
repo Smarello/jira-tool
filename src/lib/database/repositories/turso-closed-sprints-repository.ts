@@ -94,40 +94,48 @@ export class TursoClosedSprintsRepository implements IClosedSprintsRepository {
    */
   async getClosedSprints(filters: SprintQueryFilters): Promise<readonly PersistedSprint[]> {
     try {
-      let query = this.db.select().from(closedSprints);
-
-      // Apply filters
+      // Build conditions
       const conditions = [];
-      
+
       if (filters.boardId) {
         conditions.push(eq(closedSprints.boardId, filters.boardId));
       }
-      
+
       if (filters.fromDate) {
         conditions.push(gte(closedSprints.completeDate, filters.fromDate));
       }
-      
+
       if (filters.toDate) {
         conditions.push(lte(closedSprints.completeDate, filters.toDate));
       }
 
+      // Build complete query in one go
+      const baseQuery = this.db
+        .select()
+        .from(closedSprints);
+
+      // Apply all clauses based on filters
+      let finalQuery;
+
       if (conditions.length > 0) {
-        query = query.where(and(...conditions));
+        finalQuery = baseQuery
+          .where(and(...conditions))
+          .orderBy(desc(closedSprints.completeDate));
+      } else {
+        finalQuery = baseQuery
+          .orderBy(desc(closedSprints.completeDate));
       }
 
-      // Apply ordering
-      query = query.orderBy(desc(closedSprints.completeDate));
-
-      // Apply pagination
-      if (filters.limit) {
-        query = query.limit(filters.limit);
-      }
-      
-      if (filters.offset) {
-        query = query.offset(filters.offset);
+      // Apply pagination if specified
+      if (filters.limit && filters.offset) {
+        finalQuery = finalQuery.limit(filters.limit).offset(filters.offset);
+      } else if (filters.limit) {
+        finalQuery = finalQuery.limit(filters.limit);
+      } else if (filters.offset) {
+        finalQuery = finalQuery.offset(filters.offset);
       }
 
-      const results = await query;
+      const results = await finalQuery;
       return results.map(this.mapToPersistedSprint);
     } catch (error) {
       throw new Error(`Failed to get closed sprints: ${error}`);

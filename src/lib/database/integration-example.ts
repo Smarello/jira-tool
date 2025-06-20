@@ -26,7 +26,6 @@ export class DatabaseIntegrationService {
     // Create repositories
     const sprintsRepo = repositoryFactory.createClosedSprintsRepository();
     const issuesRepo = repositoryFactory.createSprintIssuesRepository();
-    const boardRepo = repositoryFactory.createBoardConfigurationRepository();
 
     // Default configuration
     const defaultConfig: SprintPersistenceConfig = {
@@ -40,7 +39,6 @@ export class DatabaseIntegrationService {
     this.persistenceService = new SprintPersistenceService(
       sprintsRepo,
       issuesRepo,
-      boardRepo,
       { ...defaultConfig, ...config }
     );
   }

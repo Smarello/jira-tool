@@ -3,7 +3,7 @@
  * Following Clean Code: Integration testing, API verification
  */
 
-const { config } = require('dotenv');
+import { config } from 'dotenv';
 
 // Load environment variables
 config();

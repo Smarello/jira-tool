@@ -164,52 +164,60 @@ export class TursoSprintIssuesRepository implements ISprintIssuesRepository {
    */
   async getIssues(filters: SprintIssueQueryFilters): Promise<readonly JiraIssueWithPoints[]> {
     try {
-      let query = this.db.select().from(sprintIssues);
-
-      // Apply filters
+      // Build conditions
       const conditions = [];
-      
+
       if (filters.sprintId) {
         conditions.push(eq(sprintIssues.sprintId, filters.sprintId));
       }
-      
+
       if (filters.sprintIds && filters.sprintIds.length > 0) {
         conditions.push(inArray(sprintIssues.sprintId, filters.sprintIds as string[]));
       }
-      
+
       if (filters.issueKey) {
         conditions.push(eq(sprintIssues.issueKey, filters.issueKey));
       }
-      
+
       if (filters.issueType) {
         conditions.push(eq(sprintIssues.issueType, filters.issueType));
       }
-      
+
       if (filters.status) {
         conditions.push(eq(sprintIssues.status, filters.status));
       }
-      
+
       if (filters.assignee) {
         conditions.push(eq(sprintIssues.assignee, filters.assignee));
       }
 
+      // Build complete query in one go
+      const baseQuery = this.db
+        .select()
+        .from(sprintIssues);
+
+      // Apply all clauses based on filters
+      let finalQuery;
+
       if (conditions.length > 0) {
-        query = query.where(and(...conditions));
+        finalQuery = baseQuery
+          .where(and(...conditions))
+          .orderBy(desc(sprintIssues.created));
+      } else {
+        finalQuery = baseQuery
+          .orderBy(desc(sprintIssues.created));
       }
 
-      // Apply ordering
-      query = query.orderBy(desc(sprintIssues.created));
-
-      // Apply pagination
-      if (filters.limit) {
-        query = query.limit(filters.limit);
-      }
-      
-      if (filters.offset) {
-        query = query.offset(filters.offset);
+      // Apply pagination if specified
+      if (filters.limit && filters.offset) {
+        finalQuery = finalQuery.limit(filters.limit).offset(filters.offset);
+      } else if (filters.limit) {
+        finalQuery = finalQuery.limit(filters.limit);
+      } else if (filters.offset) {
+        finalQuery = finalQuery.offset(filters.offset);
       }
 
-      const results = await query;
+      const results = await finalQuery;
       return results.map(this.mapToJiraIssue);
     } catch (error) {
       throw new Error(`Failed to get issues with filters: ${error}`);
