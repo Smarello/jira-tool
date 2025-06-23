@@ -6,7 +6,7 @@
 
 import type { APIRoute } from 'astro';
 import { getMcpAtlassianClient } from '../../../../lib/mcp/atlassian';
-import { calculateRealSprintsVelocity } from '../../../../lib/velocity/calculator';
+import { calculateRealSprintsVelocity, calculateRealSprintVelocity } from '../../../../lib/velocity/calculator';
 import {
   createEnhancedVelocityData
 } from '../../../../lib/velocity/mock-calculator';
@@ -102,42 +102,51 @@ export const GET: APIRoute = async ({ params }) => {
     const boardResponse = await mcpClient.getBoardInfo(boardId);
     const boardName = boardResponse.success ? boardResponse.data.name : `Board ${boardId}`;
 
-    // QUICK STRATEGY: Only last 3 sprints for ultra-fast response
-    // Following Clean Code: Magic numbers as named constants
-    const QUICK_SPRINT_LIMIT = 3;
-    const quickSprints = sprintsResponse.data.slice(-QUICK_SPRINT_LIMIT);
+    // NEW QUICK STRATEGY: Only active sprint metrics + closed sprints list
+    // Following Clean Code: Express intent, separation of concerns
+    const activeSprint = sprintsResponse.data.find(s => s.state === 'active');
+    const closedSprints = sprintsResponse.data.filter(s => s.state === 'closed');
 
-    // Calculate velocity for quick sprints only
-    const issuesApi = mcpClient.getIssuesApi();
-    const sprintVelocities = await calculateRealSprintsVelocity(
-      quickSprints,
-      issuesApi,
-      mcpClient
-    );
+    let activeSprintVelocity: any = null;
 
-    // Create quick data with stage metadata
+    // Calculate real metrics for active sprint only (if exists)
+    if (activeSprint) {
+      const issuesApi = mcpClient.getIssuesApi();
+      activeSprintVelocity = await calculateRealSprintVelocity(
+        activeSprint,
+        issuesApi,
+        mcpClient
+      );
+    }
+
+    // Create lightweight quick data with active sprint only
+    const sprintVelocities = activeSprintVelocity ? [activeSprintVelocity] : [];
     const quickData = createEnhancedVelocityData(
       boardId,
       boardName,
       sprintVelocities
     );
 
-    // Add quick-specific metadata
+    // Add quick-specific metadata with new structure
     const result = {
       ...quickData,
+      activeSprint: activeSprintVelocity,
+      closedSprintsList: closedSprints,
       isQuick: true,
       stage: 'quick',
       totalSprintsAvailable: sprintsResponse.data.length,
-      sprintsAnalyzed: quickSprints.length,
-      remainingSprints: sprintsResponse.data.length - quickSprints.length,
-      nextStageAvailable: sprintsResponse.data.length > QUICK_SPRINT_LIMIT,
+      totalClosedSprints: closedSprints.length,
+      hasActiveSprint: !!activeSprint,
+      sprintsAnalyzed: activeSprint ? 1 : 0,
+      remainingSprints: closedSprints.length,
+      nextStageAvailable: closedSprints.length > 0,
       stageSummary: {
         current: 'quick',
-        next: sprintsResponse.data.length > QUICK_SPRINT_LIMIT ? 'batch1' : null,
+        next: closedSprints.length > 0 ? 'batch1' : null,
         progress: {
-          completed: quickSprints.length,
+          completed: activeSprint ? 1 : 0,
           total: sprintsResponse.data.length,
-          percentage: Math.round((quickSprints.length / sprintsResponse.data.length) * 100)
+          percentage: activeSprint ? Math.round((1 / sprintsResponse.data.length) * 100) : 0
         }
       },
       timestamp: new Date().toISOString()

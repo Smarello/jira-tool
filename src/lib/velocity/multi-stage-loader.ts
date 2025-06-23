@@ -26,11 +26,15 @@ export interface StageResult {
   boardId: string;
   boardName: string;
   sprints: SprintVelocity[];
+  activeSprint?: SprintVelocity | null; // NEW: Direct active sprint access
+  closedSprintsList?: any[]; // NEW: List for batch processing (JiraSprint[])
   success: boolean;
   error?: string;
   metadata: {
     sprintsAnalyzed: number;
     totalSprints: number;
+    totalClosedSprints?: number; // NEW
+    hasActiveSprint?: boolean; // NEW
     progress: {
       completed: number;
       total: number;
@@ -107,13 +111,13 @@ export class MultiStageVelocityLoader {
     const stages: StageResult[] = [];
 
     try {
-      // STAGE 1: Quick loading for immediate feedback (< 10s)
+      // STAGE 1: Quick loading for immediate feedback (< 5s)
       onProgress?.({
         stage: 'quick',
         completed: 0,
         total: 100,
         percentage: 10,
-        message: 'Loading recent velocity data...'
+        message: 'Loading active sprint data...'
       });
 
       const quickResult = await this.loadQuickStage(boardId);
@@ -136,14 +140,16 @@ export class MultiStageVelocityLoader {
         completed: 25,
         total: 100,
         percentage: 25,
-        message: `Loaded ${quickResult.metadata.sprintsAnalyzed} recent sprints, loading historical data...`
+        message: quickResult.metadata.hasActiveSprint
+          ? `Loaded active sprint, loading ${quickResult.metadata.totalClosedSprints} closed sprints...`
+          : `No active sprint, loading ${quickResult.metadata.totalClosedSprints} closed sprints...`
       });
 
-      // STAGE 2+: Batch loading for comprehensive data
+      // STAGE 2+: Batch loading for closed sprints only
       const batchResults = await this.loadBatchStages(
         boardId,
-        quickResult.metadata.nextBatchStart || 3,
-        quickResult.metadata.totalSprints,
+        quickResult.metadata.nextBatchStart || 0,
+        quickResult.metadata.totalClosedSprints || 0,
         onProgress
       );
 
@@ -185,7 +191,7 @@ export class MultiStageVelocityLoader {
   // ============================================================================
 
   /**
-   * Load quick stage data (last 3 sprints for immediate feedback)
+   * Load quick stage data (active sprint metrics + closed sprints list)
    */
   private async loadQuickStage(boardId: string): Promise<StageResult> {
     const startTime = Date.now();
@@ -208,17 +214,21 @@ export class MultiStageVelocityLoader {
         boardId: data.boardId,
         boardName: data.boardName,
         sprints: data.sprints || [],
+        activeSprint: data.activeSprint, // NEW: Direct access
+        closedSprintsList: data.closedSprintsList || [], // NEW: For batch processing
         success: true,
         metadata: {
           sprintsAnalyzed: data.sprintsAnalyzed || 0,
           totalSprints: data.totalSprintsAvailable || 0,
+          totalClosedSprints: data.totalClosedSprints || 0, // NEW
+          hasActiveSprint: data.hasActiveSprint || false, // NEW
           progress: data.stageSummary?.progress || {
             completed: data.sprintsAnalyzed || 0,
             total: data.totalSprintsAvailable || 0,
             percentage: 0
           },
           hasMore: data.nextStageAvailable || false,
-          nextBatchStart: data.sprintsAnalyzed || 3
+          nextBatchStart: 0 // Always start from beginning for closed sprints
         },
         timing: {
           startTime,
@@ -390,10 +400,19 @@ export class MultiStageVelocityLoader {
     stages: StageResult[],
     strategy: 'quick-only' | 'quick-plus-batches' | 'complete'
   ): CombinedVelocityData {
+    // Find active sprint from quick stage (preserve it explicitly)
+    const quickStage = stages.find(stage => stage.stage === 'quick' && stage.success);
+    const activeSprint = quickStage?.activeSprint || null;
+
     // Combine all successful sprints
     const allSprints = stages
       .filter(stage => stage.success)
       .flatMap(stage => stage.sprints);
+
+    // Add active sprint if it exists and isn't already in the list
+    if (activeSprint && !allSprints.some(s => s.sprint.id === activeSprint.sprint.id)) {
+      allSprints.push(activeSprint);
+    }
 
     // Remove duplicates by sprint ID
     const uniqueSprints = Array.from(
@@ -401,7 +420,7 @@ export class MultiStageVelocityLoader {
     );
 
     // Sort by start date
-    uniqueSprints.sort((a, b) => 
+    uniqueSprints.sort((a, b) =>
       new Date(a.sprint.startDate).getTime() - new Date(b.sprint.startDate).getTime()
     );
 
