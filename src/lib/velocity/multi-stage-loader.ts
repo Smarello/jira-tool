@@ -54,11 +54,11 @@ export interface StageResult {
 export interface CombinedVelocityData {
   boardId: string;
   boardName: string;
-  sprints: SprintVelocity[];
+  closedSprints: readonly SprintVelocity[];  // Only closed sprints for velocity metrics
+  activeSprint: SprintVelocity | null;       // Current active sprint for display only
   averageVelocity: number;
   trend: 'up' | 'down' | 'stable' | 'no-data';
   predictability: number;
-  stages: StageResult[];
   summary: {
     totalSprintsAnalyzed: number;
     totalSprintsAvailable: number;
@@ -402,60 +402,56 @@ export class MultiStageVelocityLoader {
   ): CombinedVelocityData {
     // Find active sprint from quick stage (preserve it explicitly)
     const quickStage = stages.find(stage => stage.stage === 'quick' && stage.success);
+    const batchStages = stages.filter(stage => stage.stage === 'batch' && stage.success);
     const activeSprint = quickStage?.activeSprint || null;
 
-    // Combine all successful sprints
-    const allSprints = stages
-      .filter(stage => stage.success)
-      .flatMap(stage => stage.sprints);
-
-    // Add active sprint if it exists and isn't already in the list
-    if (activeSprint && !allSprints.some(s => s.sprint.id === activeSprint.sprint.id)) {
-      allSprints.push(activeSprint);
-    }
+    // Collect ONLY closed sprints from all successful stages
+    const allClosedSprints = batchStages
+      .flatMap(stage => stage.sprints)
+      .filter(sprint => sprint.sprint.state === 'closed');
 
     // Remove duplicates by sprint ID
-    const uniqueSprints = Array.from(
-      new Map(allSprints.map(sprint => [sprint.sprint.id, sprint])).values()
+    const uniqueClosedSprints = Array.from(
+      new Map(allClosedSprints.map(sprint => [sprint.sprint.id, sprint])).values()
     );
 
     // Sort by start date
-    uniqueSprints.sort((a, b) =>
+    uniqueClosedSprints.sort((a, b) =>
       new Date(a.sprint.startDate).getTime() - new Date(b.sprint.startDate).getTime()
     );
 
-    // Calculate aggregate metrics - round to integer for better display
-    const averageVelocity = uniqueSprints.length > 0
-      ? Math.round(uniqueSprints.reduce((sum, sprint) => sum + sprint.velocityPoints, 0) / uniqueSprints.length)
+    // Calculate aggregate metrics ONLY on closed sprints - round to integer for better display
+    const averageVelocity = uniqueClosedSprints.length > 0
+      ? Math.round(uniqueClosedSprints.reduce((sum, sprint) => sum + sprint.velocityPoints, 0) / uniqueClosedSprints.length)
       : 0;
 
-    // Calculate trend
-    const trend = this.calculateTrend(uniqueSprints);
+    // Calculate trend ONLY on closed sprints
+    const trend = this.calculateTrend(uniqueClosedSprints);
 
-    // Calculate predictability
-    const predictability = this.calculatePredictability(uniqueSprints);
+    // Calculate predictability ONLY on closed sprints
+    const predictability = this.calculatePredictability(uniqueClosedSprints);
 
-    const totalAnalyzed = stages.reduce((sum, stage) => 
+    const totalAnalyzed = batchStages.reduce((sum, stage) =>
       stage.success ? sum + stage.metadata.sprintsAnalyzed : sum, 0
     );
 
-    const totalAvailable = stages.length > 0 
-      ? stages[0].metadata.totalSprints 
+    const totalAvailable = batchStages.length > 0
+      ? batchStages[0].metadata.totalSprints
       : 0;
 
     return {
       boardId,
       boardName,
-      sprints: uniqueSprints,
+      closedSprints: uniqueClosedSprints,
+      activeSprint,
       averageVelocity,
       trend,
       predictability,
-      stages,
       summary: {
         totalSprintsAnalyzed: totalAnalyzed,
         totalSprintsAvailable: totalAvailable,
-        completionPercentage: totalAvailable > 0 
-          ? Math.round((totalAnalyzed / totalAvailable) * 100) 
+        completionPercentage: totalAvailable > 0
+          ? Math.round((totalAnalyzed / totalAvailable) * 100)
           : 0,
         loadingStrategy: strategy
       },
@@ -466,13 +462,9 @@ export class MultiStageVelocityLoader {
   /**
    * Calculate velocity trend from sprint data
    * Following Clean Code: Use consistent terminology with existing codebase
+   * Note: Now receives only closed sprints, no need to filter again
    */
-  private calculateTrend(sprints: SprintVelocity[]): 'up' | 'down' | 'stable' | 'no-data' {
-    if (sprints.length < 2) return 'no-data';
-
-    // Filter only closed sprints for trend analysis
-    const closedSprints = sprints.filter(s => s.sprint.state === 'closed');
-    
+  private calculateTrend(closedSprints: SprintVelocity[]): 'up' | 'down' | 'stable' | 'no-data' {
     if (closedSprints.length < 2) return 'no-data';
 
     const recentSprints = closedSprints.slice(-3);
@@ -497,11 +489,9 @@ export class MultiStageVelocityLoader {
   /**
    * Calculate velocity predictability (consistency metric)
    * Following Clean Code: Improved algorithm with closed sprints only
+   * Note: Now receives only closed sprints, no need to filter again
    */
-  private calculatePredictability(sprints: SprintVelocity[]): number {
-    // Only use closed sprints for predictability calculation
-    const closedSprints = sprints.filter(s => s.sprint.state === 'closed');
-    
+  private calculatePredictability(closedSprints: SprintVelocity[]): number {
     if (closedSprints.length < 2) return 100; // Perfect predictability with insufficient data
 
     const velocities = closedSprints.map(s => s.velocityPoints);
