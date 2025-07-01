@@ -259,3 +259,47 @@ export interface IBoardConfigurationRepository {
    */
   isBoardConfigurationStale(boardId: string, maxAgeHours: number): Promise<boolean>;
 }
+
+/**
+ * Board velocity metrics for persistence
+ * Following Clean Code: Express intent, immutability
+ */
+export interface BoardMetrics {
+  readonly boardId: string;
+  readonly boardName: string;
+  readonly averageVelocity: number;
+  readonly predictability: number;
+  readonly trend: 'up' | 'down' | 'stable' | 'no-data';
+  readonly sprintsAnalyzed: number;
+  readonly lastCalculated: string;
+}
+
+/**
+ * Repository interface for board velocity metrics
+ * Following Clean Architecture: Separate concerns
+ */
+export interface IBoardMetricsRepository {
+  /**
+   * Saves or updates board velocity metrics
+   * Following Clean Code: Command-Query Separation (command)
+   */
+  saveBoardMetrics(metrics: BoardMetrics): Promise<void>;
+
+  /**
+   * Gets board velocity metrics by ID
+   * Following Clean Code: Command-Query Separation (query)
+   */
+  getBoardMetrics(boardId: string): Promise<BoardMetrics | null>;
+
+  /**
+   * Deletes board metrics
+   * Following Clean Code: Single responsibility
+   */
+  deleteBoardMetrics(boardId: string): Promise<void>;
+
+  /**
+   * Lists all board metrics
+   * Following Clean Code: Express intent
+   */
+  listAllBoardMetrics(): Promise<readonly BoardMetrics[]>;
+}

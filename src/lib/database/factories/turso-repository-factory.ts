@@ -8,11 +8,13 @@ import type { DatabaseConnection } from '../connection-factory';
 import type { IRepositoryFactory } from '../repository-factory';
 import type {
   IClosedSprintsRepository,
-  IBoardConfigurationRepository
+  IBoardConfigurationRepository,
+  IBoardMetricsRepository
 } from '../repositories/interfaces';
 import type { ISprintIssuesRepository } from '../repositories/sprint-issues-repository';
 import { TursoClosedSprintsRepository } from '../repositories/turso-closed-sprints-repository';
 import { TursoBoardConfigurationRepository } from '../repositories/turso-board-configuration-repository';
+import { TursoBoardMetricsRepository } from '../repositories/turso-board-metrics-repository';
 import { TursoSprintIssuesRepository } from '../repositories/turso-sprint-issues-repository';
 
 /**
@@ -43,6 +45,14 @@ export class TursoRepositoryFactory implements IRepositoryFactory {
    */
   createBoardConfigurationRepository(): IBoardConfigurationRepository {
     return new TursoBoardConfigurationRepository(this.dbConnection);
+  }
+
+  /**
+   * Creates Turso-based board metrics repository
+   * Following Clean Code: Factory method, dependency injection
+   */
+  createBoardMetricsRepository(): IBoardMetricsRepository {
+    return new TursoBoardMetricsRepository(this.dbConnection);
   }
 
   /**

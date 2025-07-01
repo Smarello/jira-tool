@@ -70,6 +70,25 @@ export const boardConfigurations = sqliteTable('board_configurations', {
 });
 
 /**
+ * Board metrics table for storing calculated velocity metrics
+ * Following Clean Code: Single responsibility for board velocity metrics
+ */
+export const boardMetrics = sqliteTable('board_metrics', {
+  boardId: text('board_id').primaryKey(),
+  boardName: text('board_name').notNull(),
+
+  // Calculated velocity metrics
+  averageVelocity: integer('average_velocity').notNull(),
+  predictability: integer('predictability').notNull(),
+  trend: text('trend').notNull().$type<'up' | 'down' | 'stable' | 'no-data'>(),
+  sprintsAnalyzed: integer('sprints_analyzed').notNull(),
+
+  // Audit fields
+  lastCalculated: text('last_calculated').notNull(),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`)
+});
+
+/**
  * Indexes for board configurations table
  * Following Clean Code: Separate concerns, efficient queries
  */
@@ -77,6 +96,14 @@ export const boardConfigurationsIndexes = {
   projectKeyIdx: index('idx_board_configurations_project_key').on(boardConfigurations.projectKey),
   typeIdx: index('idx_board_configurations_type').on(boardConfigurations.type),
   isActiveIdx: index('idx_board_configurations_is_active').on(boardConfigurations.isActive),
+};
+
+/**
+ * Indexes for board metrics table
+ * Following Clean Code: Performance optimization for metrics queries
+ */
+export const boardMetricsIndexes = {
+  lastCalculatedIdx: index('idx_board_metrics_last_calculated').on(boardMetrics.lastCalculated),
 };
 
 /**
@@ -137,6 +164,8 @@ export type TursoClosedSprintEntity = typeof closedSprints.$inferSelect;
 export type TursoNewClosedSprintEntity = typeof closedSprints.$inferInsert;
 export type TursoBoardConfigurationEntity = typeof boardConfigurations.$inferSelect;
 export type TursoNewBoardConfigurationEntity = typeof boardConfigurations.$inferInsert;
+export type TursoBoardMetricsEntity = typeof boardMetrics.$inferSelect;
+export type TursoNewBoardMetricsEntity = typeof boardMetrics.$inferInsert;
 export type TursoSprintIssuesEntity = typeof sprintIssues.$inferSelect;
 export type TursoNewSprintIssuesEntity = typeof sprintIssues.$inferInsert;
 
@@ -147,9 +176,11 @@ export type TursoNewSprintIssuesEntity = typeof sprintIssues.$inferInsert;
 export const tursoSchema = {
   closedSprints,
   boardConfigurations,
+  boardMetrics,
   sprintIssues,
   // Indexes are now separate exports for the new Drizzle API
   closedSprintsIndexes,
   boardConfigurationsIndexes,
+  boardMetricsIndexes,
   sprintIssuesIndexes,
 } as const;

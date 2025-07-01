@@ -4,7 +4,7 @@
  * Following Clean Code: Single responsibility, interface segregation
  */
 
-import type { IClosedSprintsRepository, IBoardConfigurationRepository } from './repositories/interfaces';
+import type { IClosedSprintsRepository, IBoardConfigurationRepository, IBoardMetricsRepository } from './repositories/interfaces';
 import type { ISprintIssuesRepository } from './repositories/sprint-issues-repository';
 import type { DatabaseConnection } from './connection-factory';
 import { DatabaseConnectionFactory, DatabaseConfigFactory } from './connection-factory';
@@ -20,6 +20,7 @@ import { DatabaseConnectionFactory, DatabaseConfigFactory } from './connection-f
 export interface IRepositoryFactory {
   createClosedSprintsRepository(): IClosedSprintsRepository;
   createBoardConfigurationRepository(): IBoardConfigurationRepository;
+  createBoardMetricsRepository(): IBoardMetricsRepository;
   createSprintIssuesRepository(): ISprintIssuesRepository;
 }
 
@@ -40,6 +41,7 @@ export abstract class BaseRepositoryFactory implements IRepositoryFactory {
 
   abstract createClosedSprintsRepository(): IClosedSprintsRepository;
   abstract createBoardConfigurationRepository(): IBoardConfigurationRepository;
+  abstract createBoardMetricsRepository(): IBoardMetricsRepository;
   abstract createSprintIssuesRepository(): ISprintIssuesRepository;
 }
 
@@ -53,6 +55,10 @@ export class MockRepositoryFactory implements IRepositoryFactory {
   }
 
   createBoardConfigurationRepository(): IBoardConfigurationRepository {
+    throw new Error('Mock repository not implemented yet - will be added when needed');
+  }
+
+  createBoardMetricsRepository(): IBoardMetricsRepository {
     throw new Error('Mock repository not implemented yet - will be added when needed');
   }
 

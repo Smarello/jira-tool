@@ -12,9 +12,11 @@ export {
 } from './integration-example';
 
 // Repository interfaces (for advanced usage)
-export type { 
-  IClosedSprintsRepository, 
+export type {
+  IClosedSprintsRepository,
   IBoardConfigurationRepository,
+  IBoardMetricsRepository,
+  BoardMetrics,
   SprintVelocityData,
   SprintMetricsData,
   PersistedSprint,
