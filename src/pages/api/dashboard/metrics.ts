@@ -6,6 +6,7 @@
 
 import type { APIRoute } from 'astro';
 import { initializeRepositoryFactory } from '../../../lib/database/repository-factory';
+import type { BoardMetrics } from '../../../lib/domain/board-metrics';
 
 /**
  * Aggregated dashboard metrics interface
@@ -17,6 +18,7 @@ export interface DashboardMetrics {
   readonly averageVelocity: number;
   readonly averagePredictability: number;
   readonly lastUpdated: string;
+  readonly boardDetails: BoardMetrics[];
 }
 
 /**
@@ -50,7 +52,8 @@ export const GET: APIRoute = async ({ request }) => {
         totalSprintsAnalyzed: 0,
         averageVelocity: 0,
         averagePredictability: 0,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
+        boardDetails: []
       };
 
       return new Response(JSON.stringify(emptyMetrics), {
@@ -93,7 +96,8 @@ export const GET: APIRoute = async ({ request }) => {
       totalSprintsAnalyzed,
       averageVelocity,
       averagePredictability,
-      lastUpdated
+      lastUpdated,
+      boardDetails: allBoardMetrics
     };
 
     console.log(`[DashboardAPI] Aggregated metrics: ${boardsAnalyzed} boards, ${totalSprintsAnalyzed} sprints, avg velocity: ${averageVelocity}, avg predictability: ${averagePredictability}%`);

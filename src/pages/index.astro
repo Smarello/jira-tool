@@ -6,8 +6,8 @@
 
 import Layout from '../components/ui/Layout.astro';
 
-import ProjectMetrics from '../components/jira/ProjectMetrics.astro';
 import KpiCard from '../components/analytics/KpiCard.astro';
+import BoardMetricsCard from '../components/analytics/BoardMetricsCard.astro';
 import type { DashboardMetrics } from '../lib/jira/types.js';
 import type { DashboardMetrics as BoardMetricsSummary } from './api/dashboard/metrics.ts';
 
@@ -175,18 +175,35 @@ const kpiData = dashboardMetrics ? [
       ))}
     </div>
 
-    <!-- Project Metrics Section -->
+    <!-- Board Metrics Overview Section -->
     <div class="bg-white shadow rounded-lg">
       <div class="px-4 py-5 sm:p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">
-          Project Overview
+        <h2 class="text-lg font-medium text-gray-900 mb-6">
+          Board Metrics Overview
         </h2>
-        <!-- Pass proper props to ProjectMetrics component -->
-        <ProjectMetrics 
-          metrics={projectMetrics}
-          projectKey={projectKey}
-          loading={false}
-        />
+        {dashboardMetrics && dashboardMetrics.boardDetails.length > 0 ? (
+          <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {dashboardMetrics.boardDetails.map((board) => (
+              <BoardMetricsCard
+                boardId={board.boardId}
+                boardName={board.boardName}
+                averageVelocity={board.averageVelocity}
+                predictability={board.predictability}
+                trend={board.trend}
+                sprintsAnalyzed={board.sprintsAnalyzed}
+                lastCalculated={board.lastCalculated}
+              />
+            ))}
+          </div>
+        ) : (
+          <div class="text-center py-8">
+            <div class="text-gray-400 text-lg mb-2">📊</div>
+            <p class="text-gray-500">No board metrics available</p>
+            <p class="text-sm text-gray-400 mt-1">
+              Board metrics will appear here after analyzing velocity data
+            </p>
+          </div>
+        )}
       </div>
     </div>
 
