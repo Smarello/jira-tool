@@ -191,15 +191,16 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
       const combinedData = await loadVelocityDataMultiStage(boardId, config, onProgress);
       
       // Transform to legacy format for compatibility
+      // Following Clean Code: Defensive programming, handle edge cases
       const velocityData: VelocityData = {
         boardId: combinedData.boardId,
         boardName: combinedData.boardName,
-        closedSprints: [...combinedData.closedSprints],
+        closedSprints: combinedData.closedSprints ? [...combinedData.closedSprints] : [],
         activeSprint: combinedData.activeSprint,
         averageVelocity: combinedData.averageVelocity,
         trend: mapTrend(combinedData.trend),
         predictability: combinedData.predictability,
-        totalSprintsAnalyzed: combinedData.summary.totalSprintsAnalyzed
+        totalSprintsAnalyzed: combinedData.summary?.totalSprintsAnalyzed || 0
       };
       
       console.log(`Multi-stage loading complete: ${velocityData.totalSprintsAnalyzed} sprints analyzed`);
@@ -587,7 +588,8 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
     };
     
     // Use only closed sprints for velocity analysis (last 5 closed sprints)
-    const recentClosedSprints = data.closedSprints.slice(-5);
+    // Following Clean Code: Defensive programming, handle edge cases
+    const recentClosedSprints = data.closedSprints ? data.closedSprints.slice(-5) : [];
     
     return `
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
