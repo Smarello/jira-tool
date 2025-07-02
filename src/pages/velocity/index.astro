@@ -626,8 +626,8 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
           <h5 class="font-medium text-gray-900 mb-3">Last 5 Closed Sprints</h5>
           <div class="space-y-2">
             ${recentClosedSprints.length > 0 ? recentClosedSprints.reverse().map(sv => `
-              <div 
-                class="sprint-row flex justify-between items-center p-3 bg-gray-50 rounded cursor-pointer hover:bg-gray-100 transition-colors duration-150"
+              <div
+                class="sprint-row p-3 bg-gray-50 rounded cursor-pointer hover:bg-gray-100 transition-colors duration-150"
                 data-sprint-id="${sv.sprint.id}"
                 data-sprint-name="${sv.sprint.name}"
                 onclick="openSprintModal('${sv.sprint.id}', '${sv.sprint.name}')"
@@ -635,18 +635,43 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
                 tabindex="0"
                 aria-label="View issues for ${sv.sprint.name}"
               >
-                <div>
-                  <div class="font-medium text-sm">${sv.sprint.name}</div>
-                  <div class="text-xs text-gray-600">Closed • Click to view issues</div>
+                <!-- Sprint Header -->
+                <div class="flex justify-between items-center mb-2">
+                  <div>
+                    <div class="font-medium text-sm">${sv.sprint.name}</div>
+                    <div class="text-xs text-gray-600">Closed • Click to view issues</div>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <div class="text-right">
+                      <div class="font-medium text-sm">${sv.completedPoints}/${sv.committedPoints}</div>
+                      <div class="text-xs text-gray-600">${sv.completionRate}% complete</div>
+                    </div>
+                    <div class="text-gray-400">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                      </svg>
+                    </div>
+                  </div>
                 </div>
-                <div class="text-right">
-                  <div class="font-medium text-sm">${sv.completedPoints}/${sv.committedPoints}</div>
-                  <div class="text-xs text-gray-600">${sv.completionRate}% complete</div>
-                </div>
-                <div class="ml-2 text-gray-400">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                  </svg>
+
+                <!-- Progress Bar - Following Clean Code: Visual consistency with Current Sprint Metrics -->
+                <div class="mt-2">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-medium text-gray-600">Sprint Progress</span>
+                    <span class="text-xs text-gray-500">${sv.completedPoints} / ${sv.committedPoints} points</span>
+                  </div>
+                  <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      class="h-2 rounded-full transition-all duration-300 ${
+                        sv.completionRate >= 80
+                          ? 'bg-green-500'
+                          : sv.completionRate >= 60
+                            ? 'bg-yellow-500'
+                            : 'bg-red-500'
+                      }"
+                      style="width: ${Math.min(sv.completionRate, 100)}%"
+                    ></div>
+                  </div>
                 </div>
               </div>
             `).join('') : '<div class="text-center text-gray-500 py-4">No closed sprints available</div>'}
