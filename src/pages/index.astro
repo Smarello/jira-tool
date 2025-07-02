@@ -9,30 +9,7 @@ import Layout from '../components/ui/Layout.astro';
 import ProjectMetrics from '../components/jira/ProjectMetrics.astro';
 import KpiCard from '../components/analytics/KpiCard.astro';
 import type { DashboardMetrics } from '../lib/jira/types.js';
-
-// Mock data for demonstration - in real app, this would come from API
-const mockKpis = [
-  {
-    title: 'Active Projects',
-    value: 12,
-    description: 'Projects currently in development'
-  },
-  {
-    title: 'Completed Sprints',
-    value: 45,
-    description: 'Sprints completed this quarter'
-  },
-  {
-    title: 'Average Velocity',
-    value: 23.5,
-    description: 'Story points per sprint'
-  },
-  {
-    title: 'Team Efficiency',
-    value: 87,
-    description: 'Based on planned vs completed work (87%)'
-  }
-];
+import type { DashboardMetrics as BoardMetricsSummary } from './api/dashboard/metrics.ts';
 
 /**
  * Load project metrics with proper error handling
@@ -65,6 +42,79 @@ try {
   metricsError = 'Unable to connect to analytics API';
   console.error('Dashboard metrics loading error:', error);
 }
+
+/**
+ * Load dashboard metrics from board_metrics aggregation
+ * Following Clean Code: Single responsibility, error handling
+ */
+let dashboardMetrics: BoardMetricsSummary | null = null;
+let dashboardError: string | null = null;
+
+try {
+  // Load dashboard metrics from board_metrics aggregation
+  const baseUrl = Astro.url.origin;
+  const dashboardResponse = await fetch(`${baseUrl}/api/dashboard/metrics`);
+
+  if (dashboardResponse.ok) {
+    const data = await dashboardResponse.json();
+    if (data.error) {
+      dashboardError = data.error;
+    } else {
+      dashboardMetrics = data;
+    }
+  } else {
+    dashboardError = `Dashboard API Error: ${dashboardResponse.status} ${dashboardResponse.statusText}`;
+  }
+} catch (error) {
+  dashboardError = 'Unable to connect to dashboard metrics API';
+  console.error('Dashboard metrics loading error:', error);
+}
+
+// Create KPI data from dashboard metrics or fallback to defaults
+// Following Clean Code: Express intent, graceful degradation
+const kpiData = dashboardMetrics ? [
+  {
+    title: 'Boards Analyzed',
+    value: dashboardMetrics.boardsAnalyzed,
+    description: 'Teams with velocity metrics'
+  },
+  {
+    title: 'Sprints Analyzed',
+    value: dashboardMetrics.totalSprintsAnalyzed,
+    description: 'Total sprints analyzed across all teams'
+  },
+  {
+    title: 'Average Velocity',
+    value: dashboardMetrics.averageVelocity,
+    description: 'Story points per sprint (weighted average)'
+  },
+  {
+    title: 'Team Predictability',
+    value: dashboardMetrics.averagePredictability,
+    description: `${dashboardMetrics.averagePredictability}% average across all teams`
+  }
+] : [
+  {
+    title: 'Boards Analyzed',
+    value: 0,
+    description: 'No board metrics available yet'
+  },
+  {
+    title: 'Completed Sprints',
+    value: 0,
+    description: 'No sprint data available yet'
+  },
+  {
+    title: 'Average Velocity',
+    value: 0,
+    description: 'No velocity data available yet'
+  },
+  {
+    title: 'Team Predictability',
+    value: 0,
+    description: 'No predictability data available yet'
+  }
+];
 ---
 
 <Layout title="Dashboard - Jira Tool Analytics">
@@ -94,18 +144,33 @@ try {
             </div>
           </div>
         )}
+        {dashboardError && (
+          <div class="mt-3 p-3 bg-red-50 border-l-4 border-red-400 rounded">
+            <div class="flex">
+              <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                </svg>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm text-red-700">
+                  <strong>Dashboard Error:</strong> {dashboardError}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
 
     <!-- KPI Cards Grid -->
     <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-      {mockKpis.map((kpi) => (
+      {kpiData.map((kpi) => (
         <KpiCard
           title={kpi.title}
           value={kpi.value}
           subtitle={kpi.description}
           color="blue"
-          trend="neutral"
         />
       ))}
     </div>

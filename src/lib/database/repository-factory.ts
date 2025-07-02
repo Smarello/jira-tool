@@ -4,7 +4,7 @@
  * Following Clean Code: Single responsibility, interface segregation
  */
 
-import type { IClosedSprintsRepository, IBoardConfigurationRepository, IBoardMetricsRepository } from './repositories/interfaces';
+import type { IClosedSprintsRepository, IBoardConfigurationRepository, IBoardMetricsRepository, BoardMetrics } from './repositories/interfaces';
 import type { ISprintIssuesRepository } from './repositories/sprint-issues-repository';
 import type { DatabaseConnection } from './connection-factory';
 import { DatabaseConnectionFactory, DatabaseConfigFactory } from './connection-factory';
@@ -59,7 +59,7 @@ export class MockRepositoryFactory implements IRepositoryFactory {
   }
 
   createBoardMetricsRepository(): IBoardMetricsRepository {
-    throw new Error('Mock repository not implemented yet - will be added when needed');
+    return new MockBoardMetricsRepository();
   }
 
   createSprintIssuesRepository(): ISprintIssuesRepository {
@@ -90,7 +90,8 @@ export function getRepositoryFactory(): IRepositoryFactory {
  * Following Clean Code: Async initialization, dependency injection
  */
 export async function initializeRepositoryFactory(): Promise<IRepositoryFactory> {
-  const provider = process.env.DATABASE_PROVIDER || 'mock';
+  // In Astro API endpoints, use import.meta.env instead of process.env
+  const provider = import.meta.env?.DATABASE_PROVIDER || process.env.DATABASE_PROVIDER || 'mock';
 
   if (provider === 'mock') {
     repositoryFactoryInstance = new MockRepositoryFactory();
@@ -146,5 +147,33 @@ export async function createRepositoryFactory(provider: string, dbConnection?: D
 
     default:
       throw new Error(`Unsupported repository provider: ${provider}`);
+  }
+}
+
+/**
+ * Mock implementation of board metrics repository for development/testing
+ * Following Clean Architecture: Test doubles in infrastructure layer
+ */
+class MockBoardMetricsRepository implements IBoardMetricsRepository {
+  private metrics: Map<string, BoardMetrics> = new Map();
+
+  async saveBoardMetrics(metrics: BoardMetrics): Promise<void> {
+    this.metrics.set(metrics.boardId, metrics);
+  }
+
+  async getBoardMetrics(boardId: string): Promise<BoardMetrics | null> {
+    return this.metrics.get(boardId) || null;
+  }
+
+  async deleteBoardMetrics(boardId: string): Promise<void> {
+    this.metrics.delete(boardId);
+  }
+
+  async listAllBoardMetrics(): Promise<readonly BoardMetrics[]> {
+    return Array.from(this.metrics.values());
+  }
+
+  async getAllBoardMetrics(): Promise<BoardMetrics[]> {
+    return Array.from(this.metrics.values());
   }
 }

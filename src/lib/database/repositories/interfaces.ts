@@ -302,4 +302,10 @@ export interface IBoardMetricsRepository {
    * Following Clean Code: Express intent
    */
   listAllBoardMetrics(): Promise<readonly BoardMetrics[]>;
+
+  /**
+   * Gets all board metrics for aggregation
+   * Following Clean Code: Express intent, dashboard aggregation
+   */
+  getAllBoardMetrics(): Promise<BoardMetrics[]>;
 }

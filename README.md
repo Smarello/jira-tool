@@ -300,3 +300,34 @@ Questo progetto è sotto licenza MIT. Vedi il file `LICENSE` per dettagli.
 ---
 
 **Happy coding! 🚀**
+
+## 🚀 Gestione Migrazioni in Produzione
+
+Devi lanciare manualmente gli script di migrazione - il software NON applica automaticamente le migrazioni.
+
+Processo di Deploy in Produzione
+
+1. Prima del Deploy
+
+```bash
+# Genera le migrazioni se hai modificato lo schema
+npm run db:generate
+```
+
+2. Durante il Deploy su Vercel
+
+```bash
+# Applica le modifiche direttamente al database
+npm run db:push
+```
+
+3. Configurazione Attuale del Progetto
+
+```json
+"scripts": {
+  "db:generate": "drizzle-kit generate",
+  "db:migrate": "drizzle-kit migrate", 
+  "db:push": "drizzle-kit push",
+  "db:studio": "drizzle-kit studio"
+}
+```

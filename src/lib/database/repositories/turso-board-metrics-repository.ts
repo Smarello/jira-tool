@@ -97,6 +97,23 @@ export class TursoBoardMetricsRepository implements IBoardMetricsRepository {
   }
 
   /**
+   * Gets all board metrics for aggregation
+   * Following Clean Code: Command-Query Separation (query), dashboard aggregation
+   */
+  async getAllBoardMetrics(): Promise<BoardMetrics[]> {
+    try {
+      const results = await this.db
+        .select()
+        .from(boardMetrics)
+        .orderBy(boardMetrics.lastCalculated);
+
+      return results.map(row => this.mapToBoardMetrics(row));
+    } catch (error) {
+      throw new Error(`Failed to get all board metrics for aggregation: ${error}`);
+    }
+  }
+
+  /**
    * Maps database row to BoardMetrics domain object
    * Following Clean Code: Single responsibility, data transformation
    */

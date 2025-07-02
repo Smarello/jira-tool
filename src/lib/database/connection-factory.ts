@@ -157,14 +157,15 @@ export class DatabaseConfigFactory {
    * Following Clean Code: Environment variable abstraction
    */
   static fromEnvironment(): DatabaseConfig {
-    const provider = process.env.DATABASE_PROVIDER as DatabaseConfig['provider'] || 'turso';
-    
+    // In Astro API endpoints, use import.meta.env instead of process.env
+    const provider = (import.meta.env?.DATABASE_PROVIDER || process.env.DATABASE_PROVIDER) as DatabaseConfig['provider'] || 'turso';
+
     switch (provider) {
       case 'turso':
         return {
           provider: 'turso',
-          connectionString: process.env.TURSO_DATABASE_URL,
-          authToken: process.env.TURSO_AUTH_TOKEN,
+          connectionString: import.meta.env?.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL,
+          authToken: import.meta.env?.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN,
         };
       
       case 'cloudflare-d1':
@@ -175,7 +176,7 @@ export class DatabaseConfigFactory {
       case 'local-sqlite':
         return {
           provider: 'local-sqlite',
-          databasePath: process.env.SQLITE_DATABASE_PATH || './dev.db',
+          databasePath: import.meta.env?.SQLITE_DATABASE_PATH || process.env.SQLITE_DATABASE_PATH || './dev.db',
         };
       
       default:
