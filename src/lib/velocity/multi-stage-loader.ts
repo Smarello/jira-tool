@@ -5,6 +5,7 @@
  */
 
 import type { SprintVelocity } from './mock-calculator';
+import { saveBoardMetrics } from './metrics-persistence';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -129,7 +130,15 @@ export class MultiStageVelocityLoader {
 
       // Early return only for Kanban boards (no sprints)
       if (quickResult.metadata.totalSprints === 0) {
-        return this.createCombinedResult(quickResult.boardId, quickResult.boardName, stages, 'quick-only');
+        const combinedData = this.createCombinedResult(quickResult.boardId, quickResult.boardName, stages, 'quick-only');
+
+        // Save calculated metrics to database (async, non-blocking)
+        // Following Clean Code: Separation of concerns, fire-and-forget pattern
+        saveBoardMetrics(combinedData).catch(error => {
+          console.error(`[MultiStageLoader] Failed to save metrics for board ${boardId}:`, error);
+        });
+
+        return combinedData;
       }
 
       // Always call at least one batch stage for database persistence
@@ -156,19 +165,35 @@ export class MultiStageVelocityLoader {
       stages.push(...batchResults);
 
       const strategy = batchResults.length > 0 ? 'quick-plus-batches' : 'quick-only';
-      return this.createCombinedResult(quickResult.boardId, quickResult.boardName, stages, strategy);
+      const combinedData = this.createCombinedResult(quickResult.boardId, quickResult.boardName, stages, strategy);
+
+      // Save calculated metrics to database (async, non-blocking)
+      // Following Clean Code: Separation of concerns, fire-and-forget pattern
+      saveBoardMetrics(combinedData).catch(error => {
+        console.error(`[MultiStageLoader] Failed to save metrics for board ${boardId}:`, error);
+      });
+
+      return combinedData;
 
     } catch (error) {
       console.error('Multi-stage loading error:', error);
       
       // Graceful degradation: return quick data if available
       if (stages.length > 0 && stages[0].success) {
-        return this.createCombinedResult(
+        const combinedData = this.createCombinedResult(
           stages[0].boardId,
           stages[0].boardName,
           stages,
           'quick-only'
         );
+
+        // Save calculated metrics to database (async, non-blocking)
+        // Following Clean Code: Separation of concerns, fire-and-forget pattern
+        saveBoardMetrics(combinedData).catch(error => {
+          console.error(`[MultiStageLoader] Failed to save metrics for board ${boardId}:`, error);
+        });
+
+        return combinedData;
       }
 
       throw error;
@@ -439,7 +464,7 @@ export class MultiStageVelocityLoader {
       ? batchStages[0].metadata.totalSprints
       : 0;
 
-    return {
+    const combinedData: CombinedVelocityData = {
       boardId,
       boardName,
       closedSprints: uniqueClosedSprints,
@@ -457,6 +482,8 @@ export class MultiStageVelocityLoader {
       },
       timestamp: new Date().toISOString()
     };
+
+    return combinedData;
   }
 
   /**
