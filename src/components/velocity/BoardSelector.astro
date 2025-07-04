@@ -46,17 +46,36 @@ const boardOptions = boards.map(board => ({
   // Client-side interactivity for board selection
   // Following Clean Code: Express intent through naming
   
+  /**
+   * Extracts board type from the selected option label
+   * Following Clean Code: Express intent, single responsibility
+   */
+  function getSelectedBoardType(selectElement: HTMLSelectElement): string {
+    const selectedOption = selectElement.options[selectElement.selectedIndex];
+    if (!selectedOption) return 'unknown';
+
+    // Extract type from label that contains "(kanban)" or "(scrum)" or "(simple)"
+    const match = selectedOption.text.match(/\((\w+)\)$/);
+    return match ? match[1] : 'unknown';
+  }
+
   function handleBoardChange(event: Event) {
     const target = event.target as HTMLSelectElement;
     const selectedBoardId = target.value;
-    
+
     if (selectedBoardId) {
+      // Get board type from the selected option
+      const boardType = getSelectedBoardType(target);
+
       // Dispatch custom event for parent components to handle
       const boardChangeEvent = new CustomEvent('boardChanged', {
-        detail: { boardId: selectedBoardId },
+        detail: {
+          boardId: selectedBoardId,
+          boardType: boardType
+        },
         bubbles: true
       });
-      
+
       document.dispatchEvent(boardChangeEvent);
     }
   }

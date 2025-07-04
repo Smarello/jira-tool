@@ -1,0 +1,195 @@
+---
+/**
+ * Kanban Analytics Component
+ * Following Clean Code: Single responsibility - Kanban-specific cycle time analytics
+ * Placeholder component for future Kanban analytics implementation
+ */
+
+export interface Props {
+  boardId: string | null;
+  loading?: boolean;
+}
+
+const { boardId, loading = false } = Astro.props;
+---
+
+<div class="kanban-analytics">
+  <!-- Kanban Analytics Content -->
+  <div class="kanban-content-section">
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+      <!-- Main Cycle Time Chart -->
+      <div class="xl:col-span-2">
+        <div id="cycle-time-chart-container">
+          {loading ? (
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                Cycle Time Analysis
+              </h3>
+              <div class="animate-pulse">
+                <div class="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
+                <div class="h-32 bg-gray-200 rounded mb-4"></div>
+                <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+              </div>
+            </div>
+          ) : (
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                Cycle Time Analysis
+              </h3>
+              <div class="text-center py-12">
+                <div class="text-6xl mb-4">⏱️</div>
+                <h4 class="text-xl font-medium text-gray-900 mb-2">
+                  Kanban Analytics Coming Soon
+                </h4>
+                <p class="text-gray-600 mb-6">
+                  Cycle time percentiles, throughput metrics, and flow efficiency analysis will be available here.
+                </p>
+                <div class="bg-blue-50 p-4 rounded-lg text-left">
+                  <h5 class="font-medium text-blue-900 mb-2">Planned Features:</h5>
+                  <ul class="text-sm text-blue-800 space-y-1">
+                    <li>• Cycle time percentiles (50th, 75th, 85th, 95th)</li>
+                    <li>• Issue type filtering (Bug, Story, Task)</li>
+                    <li>• Swimlane filtering with custom JQL</li>
+                    <li>• Throughput and flow efficiency metrics</li>
+                    <li>• Lead time vs cycle time analysis</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <!-- Current Flow Metrics -->
+      <div class="xl:col-span-1">
+        <div id="flow-metrics-container">
+          {loading ? (
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                Flow Metrics
+              </h3>
+              <div class="animate-pulse">
+                <div class="h-4 bg-gray-200 rounded w-1/3 mb-3"></div>
+                <div class="h-8 bg-gray-200 rounded mb-4"></div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="h-16 bg-gray-200 rounded"></div>
+                  <div class="h-16 bg-gray-200 rounded"></div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                Flow Metrics
+              </h3>
+              <div class="text-center py-8">
+                <div class="text-4xl mb-3">📊</div>
+                <p class="text-gray-600 text-sm">
+                  Flow metrics will show throughput, WIP limits, and cycle time trends.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Kanban Insights Section -->
+    <div class="mt-8">
+      <div id="kanban-insights-container">
+        {loading ? (
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+              Flow Insights
+            </h3>
+            <div class="animate-pulse">
+              <div class="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="h-24 bg-gray-200 rounded"></div>
+                <div class="h-24 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+              Flow Insights
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="insight-card p-4 bg-purple-50 rounded-lg">
+                <div class="flex items-start">
+                  <div class="text-purple-500 mr-3 mt-1">🔄</div>
+                  <div>
+                    <h5 class="font-medium text-purple-900 mb-1">Continuous Flow</h5>
+                    <p class="text-sm text-purple-800">
+                      Kanban boards focus on continuous delivery and flow optimization rather than sprint-based velocity.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="insight-card p-4 bg-green-50 rounded-lg">
+                <div class="flex items-start">
+                  <div class="text-green-500 mr-3 mt-1">⚡</div>
+                  <div>
+                    <h5 class="font-medium text-green-900 mb-1">Cycle Time Focus</h5>
+                    <p class="text-sm text-green-800">
+                      Measure how long it takes to complete work items from start to finish.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .kanban-analytics {
+    @apply w-full;
+  }
+  
+  .kanban-content-section {
+    @apply w-full;
+  }
+  
+  .insight-card {
+    @apply transition-transform duration-200;
+  }
+  
+  .insight-card:hover {
+    @apply transform scale-105;
+  }
+</style>
+
+<script>
+  // Kanban Analytics Client-side Logic
+  // Following Clean Code: Express intent, single responsibility per function
+  
+  let currentBoardId: string | null = null;
+  
+  /**
+   * Loads Kanban analytics data for a specific board
+   * Following Clean Code: Express intent, placeholder implementation
+   */
+  async function loadKanbanAnalytics(boardId: string) {
+    if (!boardId || boardId === currentBoardId) return;
+    
+    currentBoardId = boardId;
+    console.log('Loading Kanban analytics for board:', boardId);
+    
+    // TODO: Implement actual Kanban analytics loading
+    // This will include:
+    // - Cycle time calculation
+    // - Throughput metrics
+    // - Flow efficiency analysis
+    // - Issue filtering by type and swimlane
+  }
+  
+  // Export functions for parent component access
+  (window as any).kanbanAnalytics = {
+    loadKanbanAnalytics
+  };
+</script>

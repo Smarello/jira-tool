@@ -1,0 +1,655 @@
+---
+/**
+ * Scrum Analytics Component
+ * Following Clean Code: Single responsibility - Scrum-specific velocity analytics
+ * Extracted from VelocityPage to enable board-type-specific analytics
+ */
+
+import VelocityChart from '../velocity/VelocityChart.astro';
+import SprintMetrics from '../velocity/SprintMetrics.astro';
+import VelocityTrends from '../velocity/VelocityTrends.astro';
+import VelocityProgressLoader from '../ui/VelocityProgressLoader.astro';
+
+export interface Props {
+  boardId: string | null;
+  loading?: boolean;
+}
+
+const { boardId, loading = false } = Astro.props;
+---
+
+<div class="scrum-analytics">
+  <!-- Velocity Content Section -->
+  <div class="velocity-content-section">
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+      <!-- Main Velocity Chart -->
+      <div class="xl:col-span-2">
+        <div id="velocity-chart-container">
+          {boardId ? (
+            <!-- Initial chart will be loaded via JavaScript -->
+            <VelocityChart velocityData={null} loading={true} />
+          ) : (
+            <VelocityChart velocityData={null} loading={false} />
+          )}
+        </div>
+      </div>
+      
+      <!-- Current Sprint Metrics -->
+      <div class="xl:col-span-1">
+        <div id="sprint-metrics-container">
+          <SprintMetrics currentSprint={null} loading={boardId ? true : false} />
+        </div>
+      </div>
+    </div>
+    
+    <!-- Velocity Trends Section -->
+    <div class="mt-8">
+      <div id="velocity-trends-container">
+        <VelocityTrends velocityData={null} loading={boardId ? true : false} />
+      </div>
+    </div>
+  </div>
+  
+  <!-- Loading overlay for dynamic updates -->
+  <div id="loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div id="progress-loader-container">
+      <VelocityProgressLoader 
+        boardId={boardId || 'unknown'}
+        stage="quick"
+        progress={0}
+        message="Initializing velocity analysis..."
+        allowCancel={true}
+      />
+    </div>
+  </div>
+</div>
+
+<style>
+  .scrum-analytics {
+    @apply w-full;
+  }
+  
+  .velocity-content-section {
+    @apply w-full;
+  }
+</style>
+
+<script>
+  // Scrum Analytics Client-side Logic
+  // Following Clean Code: Express intent, single responsibility per function
+  
+  interface VelocityData {
+    boardId: string;
+    boardName: string;
+    closedSprints: any[];
+    activeSprint: any | null;
+    averageVelocity: number;
+    trend: string;
+    predictability: number;
+    totalSprintsAnalyzed: number;
+  }
+  
+  let currentBoardId: string | null = null;
+  let isLoading = false;
+  let cancelController: AbortController | null = null;
+  
+  /**
+   * Shows loading overlay with progress tracking
+   * Following Clean Code: Clear function name, single responsibility
+   */
+  function showLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+      isLoading = true;
+    }
+  }
+  
+  /**
+   * Hides loading overlay and resets state
+   * Following Clean Code: Clear function name, defensive programming
+   */
+  function hideLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.classList.add('hidden');
+      isLoading = false;
+    }
+  }
+  
+  /**
+   * Multi-stage data fetching with progress tracking
+   * Following Clean Code: Express intent, error handling
+   */
+  async function fetchVelocityDataMultiStage(boardId: string): Promise<VelocityData | null> {
+    console.log('Starting multi-stage velocity loading for board:', boardId);
+
+    // Map trend values from multi-stage format to legacy format
+    const mapTrend = (trend: string): string => {
+      switch (trend) {
+        case 'up': return 'increasing';
+        case 'down': return 'decreasing';
+        case 'stable': return 'stable';
+        case 'no-data': return 'stable';
+        default: return 'stable';
+      }
+    };
+
+    try {
+      // Import multi-stage loader dynamically
+      const { loadVelocityDataMultiStage } = await import('../../lib/velocity/multi-stage-loader');
+
+      // Configure for Vercel limitations
+      const config = {
+        maxIssuesPerBatch: 150,
+        maxSprintsPerBatch: 6,
+        enableParallelBatches: false,
+        stageTimeoutMs: 45000
+      };
+
+      // Progress callback for UI updates
+      const onProgress = (progress: any) => {
+        console.log(`[${progress.stage}] ${progress.percentage}%: ${progress.message}`);
+        updateProgressLoader({
+          stage: progress.stage,
+          currentSprint: progress.completed,
+          totalSprints: progress.total,
+          message: progress.message,
+          percentage: progress.percentage
+        });
+      };
+
+      // Load data with progress tracking
+      const combinedData = await loadVelocityDataMultiStage(boardId, config, onProgress);
+
+      // Transform to legacy format for compatibility
+      // Following Clean Code: Defensive programming, handle edge cases
+      const velocityData: VelocityData = {
+        boardId: combinedData.boardId,
+        boardName: combinedData.boardName,
+        closedSprints: combinedData.closedSprints ? [...combinedData.closedSprints] : [],
+        activeSprint: combinedData.activeSprint,
+        averageVelocity: combinedData.averageVelocity,
+        trend: mapTrend(combinedData.trend),
+        predictability: combinedData.predictability,
+        totalSprintsAnalyzed: combinedData.summary?.totalSprintsAnalyzed || 0
+      };
+
+      console.log(`Multi-stage loading complete: ${velocityData.totalSprintsAnalyzed} sprints analyzed`);
+      return velocityData;
+
+    } catch (error) {
+      console.error('Multi-stage loading failed:', error);
+
+      // Fallback to quick endpoint only
+      try {
+        console.log('Falling back to quick-only loading...');
+        const response = await fetch(`/api/velocity/${boardId}/quick`);
+
+        if (response.ok) {
+          const quickData = await response.json();
+
+          return {
+            boardId: quickData.boardId,
+            boardName: quickData.boardName,
+            closedSprints: (quickData.sprints || []).filter((s: any) => s.sprint.state === 'closed'),
+            activeSprint: (quickData.sprints || []).find((s: any) => s.sprint.state === 'active') || null,
+            averageVelocity: Math.round(quickData.averageVelocity || 0),
+            trend: mapTrend(quickData.trend || 'stable'),
+            predictability: quickData.predictability || 0,
+            totalSprintsAnalyzed: quickData.sprintsAnalyzed || 0
+          };
+        }
+      } catch (fallbackError) {
+        console.error('Fallback to quick endpoint also failed:', fallbackError);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Updates the progress loader with current progress data
+   * Following Clean Code: Single responsibility, DOM manipulation
+   */
+  function updateProgressLoader(progressData: any) {
+    const container = document.getElementById('progress-loader-container');
+    if (!container) return;
+
+    // Create updated progress loader HTML
+    const progressHTML = createProgressLoaderHTML(progressData);
+    container.innerHTML = progressHTML;
+  }
+
+  /**
+   * Creates HTML for the progress loader component
+   * Following Clean Code: Template generation, express intent
+   */
+  function createProgressLoaderHTML(progressData: any): string {
+    const { stage, currentSprint, totalSprints, message, percentage } = progressData;
+    const progressPercentage = totalSprints > 0 ? Math.round((currentSprint / totalSprints) * 100) : percentage || 0;
+
+    return `
+      <div class="bg-white rounded-lg shadow-lg p-6 max-w-md mx-auto">
+        <div class="text-center">
+          <div class="text-lg font-semibold text-gray-900 mb-2">Loading Velocity Data</div>
+          <div class="text-sm text-gray-600 mb-4">${message}</div>
+
+          <div class="w-full bg-gray-200 rounded-full h-3 mb-4">
+            <div class="bg-blue-500 h-3 rounded-full transition-all duration-300" style="width: ${progressPercentage}%"></div>
+          </div>
+
+          <div class="text-xs text-gray-500">
+            Stage: ${stage} • ${progressPercentage}% complete
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Updates the velocity chart with new data
+   * Following Clean Code: Clear function name, handles both success and error states
+   */
+  function updateVelocityChart(velocityData: VelocityData | null) {
+    const container = document.getElementById('velocity-chart-container');
+    if (!container) return;
+    
+    if (velocityData) {
+      // Store velocity data globally for modal access
+      (window as any).currentVelocityData = velocityData;
+      
+      // Create chart HTML dynamically
+      container.innerHTML = createVelocityChartHTML(velocityData);
+      
+      // Re-attach event listeners for sprint rows after dynamic content creation
+      attachSprintRowListeners();
+    } else {
+      container.innerHTML = '<div class="text-center text-gray-500 py-8">Failed to load velocity data</div>';
+    }
+  }
+  
+  /**
+   * Updates sprint metrics with current sprint data
+   * Following Clean Code: Express intent, single responsibility
+   */
+  function updateSprintMetrics(velocityData: VelocityData | null) {
+    const container = document.getElementById('sprint-metrics-container');
+    if (!container) return;
+    
+    if (velocityData?.activeSprint) {
+      container.innerHTML = createSprintMetricsHTML(velocityData.activeSprint);
+    } else {
+      container.innerHTML = createEmptySprintMetricsHTML();
+    }
+  }
+  
+  /**
+   * Updates velocity trends with historical data
+   * Following Clean Code: Express intent, single responsibility
+   */
+  function updateVelocityTrends(velocityData: VelocityData | null) {
+    const container = document.getElementById('velocity-trends-container');
+    if (!container) return;
+    
+    if (velocityData) {
+      container.innerHTML = createVelocityTrendsHTML(velocityData);
+    } else {
+      container.innerHTML = '<div class="text-center text-gray-500 py-8">Failed to load trends data</div>';
+    }
+  }
+  
+  /**
+   * Loads Scrum analytics data for a specific board
+   * Following Clean Code: Express intent, error handling
+   */
+  async function loadScrumAnalytics(boardId: string) {
+    if (!boardId || boardId === currentBoardId) return;
+    
+    currentBoardId = boardId;
+    showLoading();
+    
+    try {
+      const velocityData = await fetchVelocityDataMultiStage(boardId);
+      updateVelocityChart(velocityData);
+      updateSprintMetrics(velocityData);
+      updateVelocityTrends(velocityData);
+    } catch (error) {
+      console.error('Failed to load Scrum analytics:', error);
+      updateVelocityChart(null);
+      updateSprintMetrics(null);
+      updateVelocityTrends(null);
+    } finally {
+      hideLoading();
+    }
+  }
+  
+  /**
+   * Creates HTML for velocity chart
+   * Following Clean Code: Template generation, express intent
+   */
+  function createVelocityChartHTML(data: VelocityData): string {
+    const getTrendIcon = (trend: string) => {
+      switch (trend) {
+        case 'increasing': return '📈';
+        case 'decreasing': return '📉';
+        case 'stable': return '📊';
+        default: return '📊';
+      }
+    };
+
+    const getTrendText = (trend: string) => {
+      switch (trend) {
+        case 'increasing': return 'Increasing';
+        case 'decreasing': return 'Decreasing';
+        case 'stable': return 'Stable';
+        default: return 'Unknown';
+      }
+    };
+
+    const getTrendColor = (trend: string) => {
+      switch (trend) {
+        case 'increasing': return 'text-green-600';
+        case 'decreasing': return 'text-red-600';
+        case 'stable': return 'text-blue-600';
+        default: return 'text-gray-600';
+      }
+    };
+
+    // Use only closed sprints for velocity analysis (last 5 closed sprints)
+    // Following Clean Code: Defensive programming, handle edge cases
+    const recentClosedSprints = data.closedSprints ? data.closedSprints.slice(-5) : [];
+
+    return `
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Velocity Analysis</h3>
+
+        <div class="board-header mb-6">
+          <h4 class="font-medium text-gray-900">${data.boardName}</h4>
+          <p class="text-sm text-gray-600">${data.totalSprintsAnalyzed} closed sprints analyzed</p>
+          ${data.activeSprint ?
+            `<p class="text-sm text-blue-600 mt-1">Active: ${data.activeSprint.sprint.name}</p>` :
+            ''
+          }
+        </div>
+
+        <div class="metrics-grid grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="metric-card bg-blue-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-blue-600">${data.averageVelocity}</div>
+            <div class="text-sm text-blue-800">Average Velocity</div>
+          </div>
+          <div class="metric-card bg-green-50 p-4 rounded-lg">
+            <div class="flex items-center space-x-2 ${getTrendColor(data.trend)}">
+              <span class="text-3xl">${getTrendIcon(data.trend)}</span>
+              <span class="text-xl font-bold">${getTrendText(data.trend)}</span>
+            </div>
+            <div class="text-sm text-green-600">Trend</div>
+          </div>
+          <div class="metric-card bg-purple-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-purple-600">${data.predictability}%</div>
+            <div class="text-sm text-purple-800">Predictability</div>
+          </div>
+        </div>
+
+        <div class="sprints-list">
+          <h5 class="font-medium text-gray-900 mb-3">Last 5 Closed Sprints</h5>
+          <div class="space-y-2">
+            ${recentClosedSprints.length > 0 ? recentClosedSprints.reverse().map(sv => `
+              <div
+                class="sprint-row p-3 bg-gray-50 rounded cursor-pointer hover:bg-gray-100 transition-colors duration-150"
+                data-sprint-id="${sv.sprint.id}"
+                data-sprint-name="${sv.sprint.name}"
+                onclick="openSprintModal('${sv.sprint.id}', '${sv.sprint.name}')"
+                role="button"
+                tabindex="0"
+                aria-label="View issues for ${sv.sprint.name}"
+              >
+                <!-- Sprint Header -->
+                <div class="flex justify-between items-center mb-2">
+                  <div>
+                    <div class="font-medium text-sm">${sv.sprint.name}</div>
+                    <div class="text-xs text-gray-600">Closed • Click to view issues</div>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <div class="text-right">
+                      <div class="font-medium text-sm">${sv.completedPoints}/${sv.committedPoints}</div>
+                      <div class="text-xs text-gray-600">${sv.completionRate}% complete</div>
+                    </div>
+                    <div class="text-gray-400">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Progress Bar - Following Clean Code: Visual consistency with Current Sprint Metrics -->
+                <div class="mt-2">
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-medium text-gray-600">Sprint Progress</span>
+                    <span class="text-xs text-gray-500">${sv.completedPoints} / ${sv.committedPoints} points</span>
+                  </div>
+                  <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      class="h-2 rounded-full transition-all duration-300 ${
+                        sv.completionRate >= 80
+                          ? 'bg-green-500'
+                          : sv.completionRate >= 60
+                            ? 'bg-yellow-500'
+                            : 'bg-red-500'
+                      }"
+                      style="width: ${Math.min(sv.completionRate, 100)}%"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            `).join('') : '<div class="text-center text-gray-500 py-4">No closed sprints available</div>'}
+          </div>
+          ${recentClosedSprints.length < 5 && recentClosedSprints.length > 0 ?
+            `<p class="text-xs text-gray-500 mt-2 text-center">Showing ${recentClosedSprints.length} of 5 recent closed sprints</p>` :
+            ''
+          }
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Creates HTML for velocity trends
+   * Following Clean Code: Separate concerns, focused function
+   */
+  function createVelocityTrendsHTML(velocityData: VelocityData): string {
+    const getTrendIcon = (trend: string) => {
+      switch (trend) {
+        case 'increasing': return '📈';
+        case 'decreasing': return '📉';
+        case 'stable': return '📊';
+        default: return '📊';
+      }
+    };
+
+    const getTrendColor = (trend: string) => {
+      switch (trend) {
+        case 'increasing': return 'text-green-600';
+        case 'decreasing': return 'text-red-600';
+        case 'stable': return 'text-blue-600';
+        default: return 'text-gray-600';
+      }
+    };
+
+    const getPredictabilityColor = (predictability: number) => {
+      if (predictability >= 80) return 'text-green-600';
+      if (predictability >= 60) return 'text-yellow-600';
+      return 'text-red-600';
+    };
+
+    return `
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Velocity Trends & Analysis</h3>
+
+        <div class="trend-summary grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div class="trend-card bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg">
+            <h4 class="text-lg font-medium text-gray-900 mb-2">Velocity Trend</h4>
+            <div class="flex items-center space-x-2 ${getTrendColor(velocityData.trend)}">
+              <span class="text-4xl">${getTrendIcon(velocityData.trend)}</span>
+              <span class="text-2xl font-bold">${velocityData.trend.charAt(0).toUpperCase() + velocityData.trend.slice(1)}</span>
+            </div>
+            <p class="text-sm text-gray-600 mt-2">Based on ${velocityData.totalSprintsAnalyzed} closed sprints</p>
+          </div>
+
+          <div class="predictability-card bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-lg">
+            <h4 class="text-lg font-medium text-gray-900 mb-2">Predictability</h4>
+            <div class="${getPredictabilityColor(velocityData.predictability)} text-2xl font-bold">${velocityData.predictability}%</div>
+            <p class="text-sm text-gray-600 mt-2">${
+              velocityData.predictability >= 80 ? 'High' :
+              velocityData.predictability >= 60 ? 'Medium' : 'Low'
+            } consistency</p>
+          </div>
+        </div>
+
+        <div class="insights-section">
+          <h4 class="text-lg font-medium text-gray-900 mb-4">Key Insights</h4>
+          <div class="insights-grid grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="insight-card p-4 bg-blue-50 rounded-lg">
+              <div class="flex items-start">
+                <div class="text-blue-500 mr-3 mt-1">💡</div>
+                <div>
+                  <h5 class="font-medium text-blue-900 mb-1">Average Velocity</h5>
+                  <p class="text-sm text-blue-800">Team completes an average of ${velocityData.averageVelocity} story points per sprint.</p>
+                </div>
+              </div>
+            </div>
+            <div class="insight-card p-4 bg-green-50 rounded-lg">
+              <div class="flex items-start">
+                <div class="text-green-500 mr-3 mt-1">📊</div>
+                <div>
+                  <h5 class="font-medium text-green-900 mb-1">Team Performance</h5>
+                  <p class="text-sm text-green-800">${
+                    velocityData.predictability >= 80 ? 'Highly consistent delivery with reliable planning.' :
+                    velocityData.predictability >= 60 ? 'Good consistency with room for improvement.' :
+                    'Variable performance suggests planning challenges.'
+                  }</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Attaches event listeners to sprint rows
+   * Following Clean Code: Single responsibility, clear intent
+   */
+  function attachSprintRowListeners() {
+    const sprintRows = document.querySelectorAll('.sprint-row[data-sprint-id]');
+    sprintRows.forEach(row => {
+      const sprintId = row.getAttribute('data-sprint-id');
+      const sprintName = row.getAttribute('data-sprint-name');
+
+      if (sprintId && sprintName) {
+        // Add keyboard event listener
+        row.addEventListener('keydown', (event) => {
+          const keyEvent = event as KeyboardEvent;
+          if (keyEvent.key === 'Enter' || keyEvent.key === ' ') {
+            keyEvent.preventDefault();
+            (window as any).openSprintModal?.(sprintId, sprintName);
+          }
+        });
+      }
+    });
+  }
+
+  /**
+   * Creates HTML for empty sprint metrics
+   * Following Clean Code: Template generation, defensive programming
+   */
+  function createEmptySprintMetricsHTML(): string {
+    return `
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Current Sprint Metrics</h3>
+        <div class="text-center text-gray-500 py-8">No active sprint found</div>
+      </div>
+    `;
+  }
+
+  /**
+   * Creates HTML for sprint metrics
+   * Following Clean Code: Template-like function, clear structure
+   */
+  function createSprintMetricsHTML(currentSprint: any): string {
+    if (!currentSprint) {
+      return createEmptySprintMetricsHTML();
+    }
+
+    const getSprintStatusColor = (state: string) => {
+      switch (state) {
+        case 'active': return 'bg-blue-100 text-blue-800';
+        case 'closed': return 'bg-green-100 text-green-800';
+        case 'future': return 'bg-gray-100 text-gray-800';
+        default: return 'bg-gray-100 text-gray-800';
+      }
+    };
+
+    const getCompletionStatusColor = (rate: number) => {
+      if (rate >= 80) return 'text-green-600';
+      if (rate >= 60) return 'text-yellow-600';
+      return 'text-red-600';
+    };
+
+    return `
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Current Sprint Metrics</h3>
+
+        <div class="sprint-header mb-6">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xl font-medium text-gray-900">${currentSprint.sprint.name}</h4>
+            <span class="px-2 py-1 text-xs font-medium rounded-full ${getSprintStatusColor(currentSprint.sprint.state)}">
+              ${currentSprint.sprint.state}
+            </span>
+          </div>
+          ${currentSprint.sprint.goal ? `<p class="text-sm text-gray-600 mb-4"><strong>Goal:</strong> ${currentSprint.sprint.goal}</p>` : ''}
+        </div>
+
+        <div class="progress-metrics grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="metric-card bg-blue-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-blue-600">${currentSprint.committedPoints}</div>
+            <div class="text-sm text-blue-800">Committed Points</div>
+          </div>
+          <div class="metric-card bg-green-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold text-green-600">${currentSprint.completedPoints}</div>
+            <div class="text-sm text-green-800">Completed Points</div>
+          </div>
+          <div class="metric-card bg-purple-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold ${getCompletionStatusColor(currentSprint.completionRate)}">${currentSprint.completionRate}%</div>
+            <div class="text-sm text-purple-800">Completion Rate</div>
+          </div>
+        </div>
+
+        <div class="progress-section">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-700">Sprint Progress</span>
+            <span class="text-sm text-gray-600">${currentSprint.completedPoints} / ${currentSprint.committedPoints} points</span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-3">
+            <div class="h-3 rounded-full transition-all duration-300 ${
+              currentSprint.completionRate >= 80 ? 'bg-green-500' :
+              currentSprint.completionRate >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+            }" style="width: ${Math.min(currentSprint.completionRate, 100)}%"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Export functions for parent component access
+  (window as any).scrumAnalytics = {
+    loadScrumAnalytics,
+    updateVelocityChart,
+    updateSprintMetrics,
+    updateVelocityTrends,
+    showLoading,
+    hideLoading
+  };
+</script>

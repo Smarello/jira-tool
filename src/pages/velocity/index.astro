@@ -6,9 +6,8 @@
 
 import Layout from '../../components/ui/Layout.astro';
 import BoardSelector from '../../components/velocity/BoardSelector.astro';
-import VelocityChart from '../../components/velocity/VelocityChart.astro';
-import SprintMetrics from '../../components/velocity/SprintMetrics.astro';
-import VelocityTrends from '../../components/velocity/VelocityTrends.astro';
+import ScrumAnalytics from '../../components/analytics/ScrumAnalytics.astro';
+import KanbanAnalytics from '../../components/analytics/KanbanAnalytics.astro';
 
 import VelocityProgressLoader from '../../components/ui/VelocityProgressLoader.astro';
 import SprintIssuesModal from '../../components/velocity/SprintIssuesModal.astro';
@@ -76,34 +75,16 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
           />
         </div>
         
-        <!-- Velocity Content -->
-        <div class="velocity-content-section">
-          <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
-            <!-- Main Velocity Chart -->
-            <div class="xl:col-span-2">
-              <div id="velocity-chart-container">
-                {defaultBoardId ? (
-                  <!-- Initial chart will be loaded via JavaScript -->
-                  <VelocityChart velocityData={null} loading={true} />
-                ) : (
-                  <VelocityChart velocityData={null} loading={false} />
-                )}
-              </div>
-            </div>
-            
-            <!-- Current Sprint Metrics -->
-            <div class="xl:col-span-1">
-              <div id="sprint-metrics-container">
-                <SprintMetrics currentSprint={null} loading={defaultBoardId ? true : false} />
-              </div>
-            </div>
+        <!-- Analytics Content - Conditional based on board type -->
+        <div class="analytics-content-section">
+          <!-- Scrum Analytics (default view) -->
+          <div id="scrum-analytics-view" class="analytics-view">
+            <ScrumAnalytics boardId={defaultBoardId} loading={defaultBoardId ? true : false} />
           </div>
-          
-          <!-- Velocity Trends Section -->
-          <div class="mt-8">
-            <div id="velocity-trends-container">
-              <VelocityTrends velocityData={null} loading={defaultBoardId ? true : false} />
-            </div>
+
+          <!-- Kanban Analytics (hidden by default) -->
+          <div id="kanban-analytics-view" class="analytics-view hidden">
+            <KanbanAnalytics boardId={defaultBoardId} loading={defaultBoardId ? true : false} />
           </div>
         </div>
         
@@ -706,43 +687,67 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
   }
   
   /**
-   * Handles board change event with progress tracking
+   * Switches between Scrum and Kanban analytics views
+   * Following Clean Code: Express intent, single responsibility
+   */
+  function switchAnalyticsView(boardType: string) {
+    const scrumView = document.getElementById('scrum-analytics-view');
+    const kanbanView = document.getElementById('kanban-analytics-view');
+
+    if (!scrumView || !kanbanView) return;
+
+    if (boardType === 'kanban') {
+      // Show Kanban analytics, hide Scrum analytics
+      scrumView.classList.add('hidden');
+      kanbanView.classList.remove('hidden');
+      console.log('Switched to Kanban analytics view');
+    } else {
+      // Show Scrum analytics (default for 'scrum', 'simple', or unknown types)
+      kanbanView.classList.add('hidden');
+      scrumView.classList.remove('hidden');
+      console.log('Switched to Scrum analytics view');
+    }
+  }
+
+  /**
+   * Handles board change event with progress tracking and board type routing
    * Following Clean Code: Event handling with clear flow
    */
   async function handleBoardChange(event: CustomEvent) {
-    const { boardId } = event.detail;
-    
+    const { boardId, boardType } = event.detail;
+
     if (boardId === currentBoardId) return;
-    
+
     currentBoardId = boardId;
+
+    // Switch analytics view based on board type
+    switchAnalyticsView(boardType);
+
     showLoading();
-    
+
     try {
-      // Try to use progress-enabled fetch first
-              const velocityData = await fetchVelocityDataMultiStage(boardId);
-      
-      // Update all components with new data
-      updateVelocityChart(velocityData);
-      updateSprintMetrics(velocityData);
-      updateVelocityTrends(velocityData);
+      if (boardType === 'kanban') {
+        // Load Kanban analytics
+        if ((window as any).kanbanAnalytics?.loadKanbanAnalytics) {
+          await (window as any).kanbanAnalytics.loadKanbanAnalytics(boardId);
+        }
+      } else {
+        // Load Scrum analytics (default for 'scrum', 'simple', or unknown types)
+        if ((window as any).scrumAnalytics?.loadScrumAnalytics) {
+          await (window as any).scrumAnalytics.loadScrumAnalytics(boardId);
+        }
+      }
       
     } catch (error) {
-      console.error('Failed to load velocity data with progress, falling back to regular fetch:', error);
-      
-      try {
-        // Fallback to regular fetch
-        const velocityData = await fetchVelocityData(boardId);
-        
-        updateVelocityChart(velocityData);
-        updateSprintMetrics(velocityData);
-        updateVelocityTrends(velocityData);
-      } catch (fallbackError) {
-        console.error('Failed to load velocity data:', fallbackError);
-        
-        // Show error state in components
-        updateVelocityChart(null);
-        updateSprintMetrics(null);
-        updateVelocityTrends(null);
+      console.error('Failed to load analytics data:', error);
+
+      // Show error state in appropriate analytics component
+      if (boardType === 'kanban') {
+        console.error('Kanban analytics loading failed');
+        // TODO: Handle Kanban analytics error state
+      } else {
+        console.error('Scrum analytics loading failed');
+        // TODO: Handle Scrum analytics error state
       }
     } finally {
       hideLoading();
@@ -780,7 +785,7 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
   }
   
   /**
-   * Initializes the page
+   * Initializes the page with conditional analytics loading
    * Following Clean Code: Setup function with clear intent
    */
   async function initializePage() {
@@ -788,13 +793,32 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
     const boardSelect = document.getElementById('board-select') as HTMLSelectElement;
     if (boardSelect && boardSelect.value) {
       currentBoardId = boardSelect.value;
-      const velocityData = await fetchVelocityData(currentBoardId);
-      
-      // Update all components with initial data
-      updateVelocityChart(velocityData);
-      updateSprintMetrics(velocityData);
-      updateVelocityTrends(velocityData);
-      hideLoading();
+
+      // Get board type from the selected option
+      const selectedOption = boardSelect.options[boardSelect.selectedIndex];
+      const boardTypeMatch = selectedOption?.text.match(/\((\w+)\)$/);
+      const boardType = boardTypeMatch ? boardTypeMatch[1] : 'scrum';
+
+      // Switch to appropriate analytics view
+      switchAnalyticsView(boardType);
+
+      try {
+        if (boardType === 'kanban') {
+          // Load Kanban analytics
+          if ((window as any).kanbanAnalytics?.loadKanbanAnalytics) {
+            await (window as any).kanbanAnalytics.loadKanbanAnalytics(currentBoardId);
+          }
+        } else {
+          // Load Scrum analytics (default for 'scrum', 'simple', or unknown types)
+          if ((window as any).scrumAnalytics?.loadScrumAnalytics) {
+            await (window as any).scrumAnalytics.loadScrumAnalytics(currentBoardId);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load initial analytics data:', error);
+      } finally {
+        hideLoading();
+      }
     }
   }
   
