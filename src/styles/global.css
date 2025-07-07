@@ -79,3 +79,7 @@
     @apply grid-cols-3;
   }
 }
+
+.blur {
+  filter: blur(10px);
+}
