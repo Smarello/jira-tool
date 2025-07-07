@@ -233,9 +233,25 @@ const kpiData = dashboardMetrics ? [
     <!-- Quick Actions -->
     <div class="bg-white shadow rounded-lg">
       <div class="px-4 py-5 sm:p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">
-          Quick Actions
-        </h2>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-medium text-gray-900">
+            Quick Actions
+          </h2>
+          <!-- Board Name Privacy Toggle -->
+          <div class="flex items-center space-x-2">
+            <span class="text-sm text-gray-600">Board names:</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                id="blur-toggle" 
+                class="sr-only peer" 
+                checked
+              />
+              <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+              <span class="ml-2 text-sm text-gray-600" id="blur-status">Hidden</span>
+            </label>
+          </div>
+        </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <a
             href="/velocity/"
@@ -305,6 +321,89 @@ const kpiData = dashboardMetrics ? [
     </div>
   </div>
 </Layout>
+
+<script>
+  // Board name blur toggle functionality
+  // Following Clean Code: Single responsibility, clear intent
+  
+  /**
+   * Initializes the board name blur toggle functionality
+   * Following Clean Code: Express intent, handle edge cases
+   */
+  function initializeBoardNameToggle() {
+    const blurToggle = document.getElementById('blur-toggle') as HTMLInputElement;
+    const blurStatus = document.getElementById('blur-status');
+    
+    if (!blurToggle || !blurStatus) {
+      console.warn('Blur toggle elements not found');
+      return;
+    }
+    
+    // Load saved preference from localStorage
+    // Following Clean Code: Defensive programming
+    const savedBlurState = localStorage.getItem('boardNamesBlurred');
+    const shouldBlur = savedBlurState === null ? true : savedBlurState === 'true'; // Default to blur
+    
+    // Set initial state
+    blurToggle.checked = shouldBlur;
+    updateBoardNameBlur(shouldBlur);
+    updateToggleStatus(shouldBlur, blurStatus);
+    
+    // Add event listener for toggle changes
+    blurToggle.addEventListener('change', (event) => {
+      const target = event.target as HTMLInputElement;
+      const isBlurred = target.checked;
+      
+      // Update UI
+      updateBoardNameBlur(isBlurred);
+      updateToggleStatus(isBlurred, blurStatus);
+      
+      // Save preference
+      localStorage.setItem('boardNamesBlurred', isBlurred.toString());
+      
+      console.log(`Board names ${isBlurred ? 'hidden' : 'visible'}`);
+    });
+  }
+  
+  /**
+   * Updates the blur effect on all board names
+   * Following Clean Code: Single responsibility, clear intent
+   */
+  function updateBoardNameBlur(shouldBlur: boolean) {
+    const boardNameElements = document.querySelectorAll('.bg-white h3');
+    
+    boardNameElements.forEach(element => {
+      if (shouldBlur) {
+        element.classList.add('blur');
+      } else {
+        element.classList.remove('blur');
+      }
+    });
+  }
+  
+  /**
+   * Updates the toggle status text
+   * Following Clean Code: Express intent, UI consistency
+   */
+  function updateToggleStatus(isBlurred: boolean, statusElement: Element) {
+    statusElement.textContent = isBlurred ? 'Hidden' : 'Visible';
+  }
+  
+  // Initialize when DOM is loaded
+  document.addEventListener('DOMContentLoaded', initializeBoardNameToggle);
+</script>
+
+<style>
+  /* Board name blur effect */
+  .blur {
+    filter: blur(4px);
+    transition: filter 0.3s ease;
+  }
+  
+  .blur:hover {
+    filter: blur(0px);
+  }
+</style>
 
 <!-- Client-side enhancement for real-time updates -->
 <script>
