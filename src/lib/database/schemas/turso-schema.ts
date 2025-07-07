@@ -82,6 +82,7 @@ export const boardMetrics = sqliteTable('board_metrics', {
   predictability: integer('predictability').notNull(),
   trend: text('trend').notNull().$type<'up' | 'down' | 'stable' | 'no-data'>(),
   sprintsAnalyzed: integer('sprints_analyzed').notNull(),
+  averageSprintCompletionRate: integer('average_sprint_completion_rate').notNull().default(0),
 
   // Audit fields
   lastCalculated: text('last_calculated').notNull(),

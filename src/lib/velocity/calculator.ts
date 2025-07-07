@@ -367,3 +367,28 @@ export async function calculateRealSprintVelocityLegacy(
 ): Promise<SprintVelocity> {
   return calculateRealSprintVelocity(sprint, issuesApi, mcpClient);
 }
+
+/**
+ * Calculates average sprint completion rate from velocity data
+ * Following Clean Code: Pure function, single responsibility, express intent
+ */
+export function calculateAverageSprintCompletionRate(
+  sprintVelocities: readonly SprintVelocity[]
+): number {
+  // Filter only closed sprints for completion rate calculation
+  const completedSprints = sprintVelocities.filter(sv => 
+    sv.sprint.state === 'closed'
+  );
+
+  if (completedSprints.length === 0) {
+    return 0; // No completed sprints, return 0%
+  }
+
+  // Calculate average completion rate from all closed sprints
+  const totalCompletionRate = completedSprints.reduce((sum, sprint) => 
+    sum + sprint.completionRate, 0
+  );
+
+  // Return rounded average percentage
+  return Math.round(totalCompletionRate / completedSprints.length);
+}

@@ -47,7 +47,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Validate required fields
-    const requiredFields = ['boardId', 'boardName', 'averageVelocity', 'predictability', 'trend', 'sprintsAnalyzed'];
+    const requiredFields = ['boardId', 'boardName', 'averageVelocity', 'predictability', 'trend', 'sprintsAnalyzed', 'averageSprintCompletionRate'];
     const missingFields = requiredFields.filter(field => 
       metricsData[field as keyof BoardMetrics] === undefined || 
       metricsData[field as keyof BoardMetrics] === null

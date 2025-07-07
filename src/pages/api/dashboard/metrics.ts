@@ -6,7 +6,7 @@
 
 import type { APIRoute } from 'astro';
 import { initializeRepositoryFactory } from '../../../lib/database/repository-factory';
-import type { BoardMetrics } from '../../../lib/domain/board-metrics';
+import type { BoardMetrics } from '../../../lib/database/repositories/interfaces';
 
 /**
  * Aggregated dashboard metrics interface
@@ -17,6 +17,7 @@ export interface DashboardMetrics {
   readonly totalSprintsAnalyzed: number;
   readonly averageVelocity: number;
   readonly averagePredictability: number;
+  readonly averageSprintCompletionRate: number;
   readonly lastUpdated: string;
   readonly boardDetails: BoardMetrics[];
 }
@@ -52,6 +53,7 @@ export const GET: APIRoute = async ({ request }) => {
         totalSprintsAnalyzed: 0,
         averageVelocity: 0,
         averagePredictability: 0,
+        averageSprintCompletionRate: 0,
         lastUpdated: new Date().toISOString(),
         boardDetails: []
       };
@@ -86,6 +88,14 @@ export const GET: APIRoute = async ({ request }) => {
       ? Math.round(totalPredictabilityPoints / totalSprintsAnalyzed)
       : 0;
 
+    // Calculate average sprint completion rate (weighted by number of sprints)
+    const totalCompletionRatePoints = allBoardMetrics.reduce((sum, board) => 
+      sum + (board.averageSprintCompletionRate * board.sprintsAnalyzed), 0
+    );
+    const averageSprintCompletionRate = totalSprintsAnalyzed > 0 
+      ? Math.round(totalCompletionRatePoints / totalSprintsAnalyzed)
+      : 0;
+
     // Find most recent update
     const lastUpdated = allBoardMetrics.reduce((latest, board) => {
       return board.lastCalculated > latest ? board.lastCalculated : latest;
@@ -96,11 +106,12 @@ export const GET: APIRoute = async ({ request }) => {
       totalSprintsAnalyzed,
       averageVelocity,
       averagePredictability,
+      averageSprintCompletionRate,
       lastUpdated,
       boardDetails: allBoardMetrics
     };
 
-    console.log(`[DashboardAPI] Aggregated metrics: ${boardsAnalyzed} boards, ${totalSprintsAnalyzed} sprints, avg velocity: ${averageVelocity}, avg predictability: ${averagePredictability}%`);
+    console.log(`[DashboardAPI] Aggregated metrics: ${boardsAnalyzed} boards, ${totalSprintsAnalyzed} sprints, avg velocity: ${averageVelocity}, avg predictability: ${averagePredictability}%, avg completion: ${averageSprintCompletionRate}%`);
 
     return new Response(JSON.stringify(dashboardMetrics), {
       status: 200,

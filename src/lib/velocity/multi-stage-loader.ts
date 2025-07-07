@@ -6,6 +6,7 @@
 
 import type { SprintVelocity } from './mock-calculator';
 import { saveBoardMetrics } from './metrics-persistence';
+import { calculateAverageSprintCompletionRate } from './calculator';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -60,6 +61,7 @@ export interface CombinedVelocityData {
   averageVelocity: number;
   trend: 'up' | 'down' | 'stable' | 'no-data';
   predictability: number;
+  averageSprintCompletionRate: number;
   summary: {
     totalSprintsAnalyzed: number;
     totalSprintsAvailable: number;
@@ -456,6 +458,9 @@ export class MultiStageVelocityLoader {
     // Calculate predictability ONLY on closed sprints
     const predictability = this.calculatePredictability(uniqueClosedSprints);
 
+    // Calculate average sprint completion rate ONLY on closed sprints
+    const averageSprintCompletionRate = calculateAverageSprintCompletionRate(uniqueClosedSprints);
+
     const totalAnalyzed = batchStages.reduce((sum, stage) =>
       stage.success ? sum + stage.metadata.sprintsAnalyzed : sum, 0
     );
@@ -472,6 +477,7 @@ export class MultiStageVelocityLoader {
       averageVelocity,
       trend,
       predictability,
+      averageSprintCompletionRate,
       summary: {
         totalSprintsAnalyzed: totalAnalyzed,
         totalSprintsAvailable: totalAvailable,

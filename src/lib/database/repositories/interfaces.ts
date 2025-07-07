@@ -271,6 +271,7 @@ export interface BoardMetrics {
   readonly predictability: number;
   readonly trend: 'up' | 'down' | 'stable' | 'no-data';
   readonly sprintsAnalyzed: number;
+  readonly averageSprintCompletionRate: number;
   readonly lastCalculated: string;
 }
 

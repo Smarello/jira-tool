@@ -121,6 +121,7 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
     trend: string;
     predictability: number;
     totalSprintsAnalyzed: number;
+    averageSprintCompletionRate: number;
   }
   
   let currentBoardId: string | null = null;
@@ -181,7 +182,8 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
         averageVelocity: combinedData.averageVelocity,
         trend: mapTrend(combinedData.trend),
         predictability: combinedData.predictability,
-        totalSprintsAnalyzed: combinedData.summary?.totalSprintsAnalyzed || 0
+        totalSprintsAnalyzed: combinedData.summary?.totalSprintsAnalyzed || 0,
+        averageSprintCompletionRate: combinedData.averageSprintCompletionRate || 0
       };
       
       console.log(`Multi-stage loading complete: ${velocityData.totalSprintsAnalyzed} sprints analyzed`);
@@ -206,7 +208,8 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
             averageVelocity: Math.round(quickData.averageVelocity || 0),
             trend: mapTrend(quickData.trend || 'stable'),
             predictability: quickData.predictability || 0,
-            totalSprintsAnalyzed: quickData.sprintsAnalyzed || 0
+            totalSprintsAnalyzed: quickData.sprintsAnalyzed || 0,
+            averageSprintCompletionRate: 0  // Not available in quick endpoint, set default
           };
         }
       } catch (fallbackError) {
@@ -568,6 +571,12 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
       }
     };
     
+    const getCompletionRateColor = (value: number) => {
+      if (value >= 85) return 'text-green-600';
+      if (value >= 70) return 'text-yellow-600';
+      return 'text-red-600';
+    };
+    
     // Use only closed sprints for velocity analysis (last 5 closed sprints)
     // Following Clean Code: Defensive programming, handle edge cases
     const recentClosedSprints = data.closedSprints ? data.closedSprints.slice(-5) : [];
@@ -585,7 +594,7 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
           }
         </div>
         
-        <div class="metrics-grid grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="metrics-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div class="metric-card bg-blue-50 p-4 rounded-lg">
             <div class="text-2xl font-bold text-blue-600">${data.averageVelocity}</div>
             <div class="text-sm text-blue-800">Average Velocity</div>
@@ -600,6 +609,10 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
           <div class="metric-card bg-purple-50 p-4 rounded-lg">
             <div class="text-2xl font-bold text-purple-600">${data.predictability}%</div>
             <div class="text-sm text-purple-800">Predictability</div>
+          </div>
+          <div class="metric-card bg-orange-50 p-4 rounded-lg">
+            <div class="text-2xl font-bold ${getCompletionRateColor(data.averageSprintCompletionRate)}">${data.averageSprintCompletionRate}%</div>
+            <div class="text-sm text-orange-800">Sprint Completion</div>
           </div>
         </div>
         

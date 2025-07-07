@@ -22,6 +22,13 @@
       "when": 1751359281318,
       "tag": "0002_complex_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1751880415057,
+      "tag": "0003_burly_luminals",
+      "breakpoints": true
     }
   ]
 }

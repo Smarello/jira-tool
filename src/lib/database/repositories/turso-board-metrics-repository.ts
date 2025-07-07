@@ -29,6 +29,7 @@ export class TursoBoardMetricsRepository implements IBoardMetricsRepository {
         predictability: metrics.predictability,
         trend: metrics.trend,
         sprintsAnalyzed: metrics.sprintsAnalyzed,
+        averageSprintCompletionRate: metrics.averageSprintCompletionRate,
         lastCalculated: metrics.lastCalculated,
         updatedAt: new Date().toISOString(),
       }).onConflictDoUpdate({
@@ -39,6 +40,7 @@ export class TursoBoardMetricsRepository implements IBoardMetricsRepository {
           predictability: metrics.predictability,
           trend: metrics.trend,
           sprintsAnalyzed: metrics.sprintsAnalyzed,
+          averageSprintCompletionRate: metrics.averageSprintCompletionRate,
           lastCalculated: metrics.lastCalculated,
           updatedAt: new Date().toISOString(),
         }
@@ -125,6 +127,7 @@ export class TursoBoardMetricsRepository implements IBoardMetricsRepository {
       predictability: row.predictability,
       trend: row.trend,
       sprintsAnalyzed: row.sprintsAnalyzed,
+      averageSprintCompletionRate: row.averageSprintCompletionRate || 0,
       lastCalculated: row.lastCalculated,
     };
   }

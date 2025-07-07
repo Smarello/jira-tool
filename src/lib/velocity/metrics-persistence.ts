@@ -25,6 +25,7 @@ export async function saveBoardMetrics(velocityData: CombinedVelocityData): Prom
       predictability: velocityData.predictability,
       trend: velocityData.trend,
       sprintsAnalyzed: velocityData.summary.totalSprintsAnalyzed,
+      averageSprintCompletionRate: velocityData.averageSprintCompletionRate,
       lastCalculated: new Date().toISOString(),
     };
 

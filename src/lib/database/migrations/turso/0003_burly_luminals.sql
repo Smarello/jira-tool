@@ -1,0 +1,1 @@
+ALTER TABLE `board_metrics` ADD `average_sprint_completion_rate` integer DEFAULT 0 NOT NULL;
