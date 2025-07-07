@@ -8,6 +8,7 @@ export interface Props {
   title: string;
   value: number;
   subtitle?: string;
+  suffix?: string;
   trend?: 'up' | 'down' | 'neutral';
   color?: 'blue' | 'green' | 'yellow' | 'red' | 'gray';
 }
@@ -16,17 +17,18 @@ const {
   title, 
   value, 
   subtitle, 
+  suffix = '',
   trend = 'neutral',
   color = 'blue' 
 } = Astro.props;
 
-// Color mappings following DRY principle
-const colorClasses = {
-  blue: 'border-blue-500 bg-blue-50',
-  green: 'border-green-500 bg-green-50',
-  yellow: 'border-yellow-500 bg-yellow-50',
-  red: 'border-red-500 bg-red-50',
-  gray: 'border-gray-500 bg-gray-50'
+// Color mappings following DRY principle - only border colors, white background
+const borderColorClasses = {
+  blue: 'border-blue-500',
+  green: 'border-green-500',
+  yellow: 'border-yellow-500',
+  red: 'border-red-500',
+  gray: 'border-gray-500'
 };
 
 const textColorClasses = {
@@ -50,12 +52,12 @@ const trendColors = {
 };
 ---
 
-<div class={`bg-white border-l-4 rounded-lg shadow-sm p-6 ${colorClasses[color]}`}>
+<div class={`bg-white border-l-4 rounded-lg shadow-sm p-6 ${borderColorClasses[color]}`}>
   <div class="flex items-center justify-between">
     <div>
       <p class="text-sm font-medium text-gray-600">{title}</p>
       <p class={`text-3xl font-bold ${textColorClasses[color]}`}>
-        {value.toLocaleString()}
+        {value.toLocaleString()}{suffix}
       </p>
       {subtitle && (
         <p class="text-sm text-gray-500 mt-1">{subtitle}</p>

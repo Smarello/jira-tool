@@ -91,7 +91,14 @@ const kpiData = dashboardMetrics ? [
   {
     title: 'Team Predictability',
     value: dashboardMetrics.averagePredictability,
+    suffix: '%',
     description: `${dashboardMetrics.averagePredictability}% average across all teams`
+  },
+  {
+    title: 'Average Sprint Completion',
+    value: dashboardMetrics.averageSprintCompletionRate,
+    suffix: '%',
+    description: `${dashboardMetrics.averageSprintCompletionRate}% average completion rate across all teams`
   }
 ] : [
   {
@@ -112,7 +119,14 @@ const kpiData = dashboardMetrics ? [
   {
     title: 'Team Predictability',
     value: 0,
+    suffix: '%',
     description: 'No predictability data available yet'
+  },
+  {
+    title: 'Average Sprint Completion',
+    value: 0,
+    suffix: '%',
+    description: 'No completion rate data available yet'
   }
 ];
 ---
@@ -164,13 +178,21 @@ const kpiData = dashboardMetrics ? [
     </div>
 
     <!-- KPI Cards Grid -->
-    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-      {kpiData.map((kpi) => (
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      {kpiData.map((kpi, index) => (
         <KpiCard
           title={kpi.title}
           value={kpi.value}
           subtitle={kpi.description}
-          color="blue"
+          suffix={kpi.suffix}
+          color={
+            index === 0 ? "blue" :    // Boards Analyzed - blue
+            index === 1 ? "gray" :    // Sprints Analyzed - gray  
+            index === 2 ? "green" :   // Average Velocity - green
+            index === 3 ? "red" :     // Team Predictability - red
+            index === 4 ? "yellow" :  // Sprint Completion - yellow/orange
+            "blue"                    // fallback
+          }
         />
       ))}
     </div>
