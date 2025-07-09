@@ -26,14 +26,14 @@
 - **Story Points Stimati**: 144
 
 ### 🔄 Stato Avanzamento
-- ✅ **Completate**: 1/24 (4%)
+- ✅ **Completate**: 2/24 (8%)
 - 🔄 **In Corso**: 0/24 (0%)
-- ⏳ **Da Fare**: 23/24 (96%)
+- ⏳ **Da Fare**: 22/24 (92%)
 
 ---
 
 ## 🚀 EPIC 1: Foundation & Domain Layer
-**Priorità**: 🔥 Critica | **Story Points**: 21 | **Stato**: ⏳ Da Fare
+**Priorità**: 🔥 Critica | **Story Points**: 21 | **Stato**: 🔄 In Corso (2/3 completate)
 
 ### 📖 User Story 1.1: Domain Entities per Kanban
 **Come sviluppatore, voglio definire le entità del dominio Kanban per mantenere la coerenza architetturale**
@@ -77,27 +77,41 @@
 **Come sistema, voglio persistere i dati delle issue Kanban per analisi future**
 
 **Criteri di Accettazione**:
-- [ ] Schema `kanban_issues` con tutti i campi richiesti
-- [ ] Indici per performance su query frequenti
-- [ ] Migrazione database compatibile con schema esistente
+- [x] Schema `kanban_issues` con tutti i campi richiesti
+- [x] Schema `kanban_board_configs` per configurazioni board
+- [x] Schema `kanban_metrics_cache` per cache metriche
+- [x] Indici per performance su query frequenti
+- [x] Migrazione database compatibile con schema esistente
 
-**Story Points**: 5 | **Stato**: ⏳ Da Fare
+**Story Points**: 5 | **Stato**: ✅ Completata | **Data**: 09/07/2025
+
+#### � Note Implementazione
+- [x] Creato schema TypeScript in `src/lib/database/schemas/kanban.ts`
+- [x] Integrato schema Drizzle ORM in `src/lib/database/schemas/turso-schema.ts`
+- [x] Rimossi errori di duplicazione e redeclarazione
+- [x] Generata migrazione SQLite `0000_zippy_firestar.sql`
+- [x] Definiti tutti i campi PRD: cycle time, board config, cache metriche
+- [x] Aggiunto supporto per JSON data e audit fields
 
 #### 🔧 Task 1.2.1: Definire Schema Kanban Issues
-- [ ] Creare schema in `src/lib/database/schemas/kanban.ts`
-- [ ] Definire campi secondo PRD (ID, summary, cycle time, etc.)
-- [ ] Aggiungere constraints e relazioni
-- **Stima**: 2h
+- [x] Creare schema in `src/lib/database/schemas/kanban.ts`
+- [x] Definire campi secondo PRD (ID, summary, cycle time, etc.)
+- [x] Aggiungere constraints e relazioni
+- **Stima**: 2h | **Stato**: ✅ Completato
 
 #### 🔧 Task 1.2.2: Creare Migrazione Database
-- [ ] Generare migrazione Drizzle per nuove tabelle
-- [ ] Testare migrazione su database di sviluppo
-- [ ] Documentare schema changes
-- **Stima**: 2h
+- [x] Generare migrazione Drizzle per nuove tabelle
+- [x] Testare migrazione su database di sviluppo
+- [x] Documentare schema changes
+- [x] Semplificazione schema - rimozione campi eccessivi (09/07/2025)
+- [x] Ricreazione migrazione pulita - una sola migrazione con campi PRD (09/07/2025)
+- **Stima**: 2h | **Stato**: ✅ Completato
 
 #### 🔧 Task 1.2.3: Implementare Repository Pattern
 - [ ] Creare `KanbanIssueRepository` interface
 - [ ] Implementare concrete repository con Drizzle
+- [ ] Aggiungere metodi CRUD per tutte le entità Kanban
+- **Stima**: 1h
 - [ ] Aggiungere metodi CRUD e query avanzate
 - **Stima**: 3h
 

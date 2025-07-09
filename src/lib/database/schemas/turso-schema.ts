@@ -158,6 +158,97 @@ export const sprintIssuesIndexes = {
 };
 
 /**
+ * Kanban Issues table for Turso
+ * Following PRD requirements: simplified schema with only essential fields
+ */
+export const kanbanIssues = sqliteTable('kanban_issues', {
+  // Primary identifiers
+  id: text('id').primaryKey(),          // Jira issue ID
+  key: text('key').notNull().unique(),  // Jira issue key (e.g., PROJ-123)
+  summary: text('summary').notNull(),
+  issueType: text('issue_type').notNull(),
+  status: text('status').notNull(),     // Current Jira status (stato finale)
+  assignee: text('assignee'),
+  boardId: text('board_id').notNull(),
+  boardName: text('board_name').notNull(),
+
+  // Cycle time calculation fields (core PRD requirements)
+  boardEntryDate: text('board_entry_date'),       // Date when issue entered board (or creation)
+  lastDoneDate: text('last_done_date'),           // Last time issue entered "Done" column
+  cycleTimeDays: integer('cycle_time_days'),      // Calculated cycle time in days
+
+  // Issue lifecycle dates (PRD requirements)
+  created: text('created').notNull(),             // Issue creation date (data apertura)
+  resolved: text('resolved'),                     // Resolution date (data chiusura)
+
+  // Issue reopened handling (PRD requirement: exclude reopened issues)
+  isReopened: integer('is_reopened', { mode: 'boolean' }).default(false).notNull(),
+  excludeFromMetrics: integer('exclude_from_metrics', { mode: 'boolean' }).default(false).notNull(),
+
+  // Audit fields
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+});
+
+/**
+ * Kanban Board Configurations table for Turso
+ * Simplified to only essential PRD requirements
+ */
+export const kanbanBoardConfigs = sqliteTable('kanban_board_configs', {
+  boardId: text('board_id').primaryKey(),
+  boardName: text('board_name').notNull(),
+  projectKey: text('project_key').notNull(),
+  
+  // Column mapping configuration (core PRD requirement)
+  columnMappings: text('column_mappings').notNull(),    // JSON: StatusMapping[]
+  doneColumns: text('done_columns').notNull(),          // JSON: string[]
+  
+  // Audit fields
+  createdAt: text('created_at').default(sql`(datetime('now'))`).notNull(),
+  updatedAt: text('updated_at').default(sql`(datetime('now'))`).notNull(),
+});
+
+/**
+ * Indexes for Kanban Issues table
+ * Following Clean Code: Performance optimization for common queries
+ */
+export const kanbanIssuesIndexes = {
+  boardIdIdx: index('idx_kanban_issues_board_id').on(kanbanIssues.boardId),
+  statusIdx: index('idx_kanban_issues_status').on(kanbanIssues.status),
+  issueTypeIdx: index('idx_kanban_issues_issue_type').on(kanbanIssues.issueType),
+  assigneeIdx: index('idx_kanban_issues_assignee').on(kanbanIssues.assignee),
+  lastDoneDateIdx: index('idx_kanban_issues_last_done_date').on(kanbanIssues.lastDoneDate),
+  boardEntryDateIdx: index('idx_kanban_issues_board_entry_date').on(kanbanIssues.boardEntryDate),
+  cycleTimeDaysIdx: index('idx_kanban_issues_cycle_time_days').on(kanbanIssues.cycleTimeDays),
+  excludeFromMetricsIdx: index('idx_kanban_issues_exclude_metrics').on(kanbanIssues.excludeFromMetrics),
+  isReopenedIdx: index('idx_kanban_issues_is_reopened').on(kanbanIssues.isReopened),
+  
+  // Composite indexes for common query patterns
+  boardStatusIdx: index('idx_kanban_issues_board_status').on(kanbanIssues.boardId, kanbanIssues.status),
+  boardTypeIdx: index('idx_kanban_issues_board_type').on(kanbanIssues.boardId, kanbanIssues.issueType),
+  boardDateRangeIdx: index('idx_kanban_issues_board_date_range').on(
+    kanbanIssues.boardId, 
+    kanbanIssues.lastDoneDate, 
+    kanbanIssues.excludeFromMetrics
+  ),
+  
+  // Analytics-specific indexes
+  analyticsIdx: index('idx_kanban_issues_analytics').on(
+    kanbanIssues.boardId,
+    kanbanIssues.excludeFromMetrics,
+    kanbanIssues.isReopened,
+    kanbanIssues.cycleTimeDays
+  ),
+};
+
+/**
+ * Indexes for Kanban Board Configs table
+ */
+export const kanbanBoardConfigsIndexes = {
+  projectKeyIdx: index('idx_kanban_board_configs_project_key').on(kanbanBoardConfigs.projectKey),
+};
+
+/**
  * Type definitions for Turso entities
  * Following Clean Code: Express intent through types
  */
@@ -171,6 +262,15 @@ export type TursoSprintIssuesEntity = typeof sprintIssues.$inferSelect;
 export type TursoNewSprintIssuesEntity = typeof sprintIssues.$inferInsert;
 
 /**
+ * Type definitions for Kanban Turso entities
+ * Following Clean Code: Express intent through types
+ */
+export type TursoKanbanIssueEntity = typeof kanbanIssues.$inferSelect;
+export type TursoNewKanbanIssueEntity = typeof kanbanIssues.$inferInsert;
+export type TursoKanbanBoardConfigEntity = typeof kanbanBoardConfigs.$inferSelect;
+export type TursoNewKanbanBoardConfigEntity = typeof kanbanBoardConfigs.$inferInsert;
+
+/**
  * Database schema export for Drizzle migrations
  * Following Clean Code: Single point of schema definition
  */
@@ -179,9 +279,7 @@ export const tursoSchema = {
   boardConfigurations,
   boardMetrics,
   sprintIssues,
-  // Indexes are now separate exports for the new Drizzle API
-  closedSprintsIndexes,
-  boardConfigurationsIndexes,
-  boardMetricsIndexes,
-  sprintIssuesIndexes,
+  // Kanban tables
+  kanbanIssues,
+  kanbanBoardConfigs,
 } as const;
