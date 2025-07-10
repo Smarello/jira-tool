@@ -27,6 +27,7 @@ export interface McpAtlassianClient {
   getSprintDetails(sprintId: string): Promise<JiraApiResponse<JiraSprint>>;
   getSprintIssues(sprintId: string): Promise<JiraApiResponse<readonly JiraIssueWithPoints[]>>;
   getBoardDoneStatusIds(boardId: string): Promise<JiraApiResponse<readonly string[]>>;
+  getBoardToDoStatusIds(boardId: string): Promise<JiraApiResponse<readonly string[]>>;
   getIssueChangelog(issueKey: string): Promise<JiraApiResponse<IssueChangelog>>;
 }
 
@@ -279,6 +280,27 @@ class McpAtlassianClientImpl implements McpAtlassianClient {
         data: [],
         success: false,
         error: error instanceof Error ? error.message : 'API failed to fetch board done status IDs'
+      };
+    }
+  }
+
+  async getBoardToDoStatusIds(boardId: string): Promise<JiraApiResponse<readonly string[]>> {
+    try {
+      // Real API call using dependency-injected service
+      const statusIds = await this.boardsApi.getToDoColumnStatusIds(boardId);
+      
+      return {
+        data: statusIds,
+        success: true
+      };
+    } catch (error) {
+      // Graceful degradation: fallback to empty array
+      console.warn('Jira API failed to fetch board To Do status IDs:', error);
+      
+      return {
+        data: [],
+        success: false,
+        error: error instanceof Error ? error.message : 'API failed to fetch board To Do status IDs'
       };
     }
   }

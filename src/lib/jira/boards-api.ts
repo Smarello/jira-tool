@@ -126,6 +126,41 @@ export class JiraBoardsApi {
   }
 
   /**
+   * Gets status IDs that are mapped to the first work column (To Do column)
+   * Following Clean Code: Express intent, single responsibility
+   * Note: Excludes "Backlog" column - if first column is "Backlog", uses second column instead
+   */
+  async getToDoColumnStatusIds(boardId: string): Promise<readonly string[]> {
+    const config = await this.fetchBoardConfiguration(boardId);
+    
+    if (config.columns.length === 0) {
+      return [];
+    }
+    
+    // Check if first column is "Backlog" (case-insensitive)
+    const firstColumn = config.columns[0];
+    const isFirstColumnBacklog = firstColumn.name.toLowerCase() == 'backlog';
+    
+    let targetColumn: BoardColumn;
+    
+    if (isFirstColumnBacklog) {
+      // If first column is Backlog, use second column
+      if (config.columns.length < 2) {
+        console.warn(`[BoardsApi] Board ${boardId} has only Backlog column, no work columns available`);
+        return [];
+      }
+      targetColumn = config.columns[1];
+      console.log(`[BoardsApi] Board ${boardId} skipping Backlog column, using second column: "${targetColumn.name}" with ${targetColumn.statuses.length} statuses`);
+    } else {
+      // Use first column as it's not Backlog
+      targetColumn = firstColumn;
+      console.log(`[BoardsApi] Board ${boardId} using first column: "${targetColumn.name}" with ${targetColumn.statuses.length} statuses`);
+    }
+    
+    return targetColumn.statuses.map(status => status.id);
+  }
+
+  /**
    * Gets status names that are mapped to the last column (completion column)
    * Following Clean Code: Express intent, single responsibility
    * @deprecated Use getDoneColumnStatusIds instead for better reliability
@@ -143,4 +178,6 @@ export class JiraBoardsApi {
     
     return lastColumn.statuses.map(status => status.name);
   }
+
+  // ...existing code...
 }

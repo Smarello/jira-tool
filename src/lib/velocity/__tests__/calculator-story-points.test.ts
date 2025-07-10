@@ -99,7 +99,8 @@ const createMockMcpClient = (
   getSprintDetails: jest.fn(),
   getSprintIssues: jest.fn().mockResolvedValue(issuesResponse),
   getBoardDoneStatusIds: jest.fn(),
-  getIssueChangelog: jest.fn()
+  getIssueChangelog: jest.fn(),
+  getBoardToDoStatusIds: jest.fn()
 });
 
 describe('calculateSprintStoryPoints', () => {
@@ -357,5 +358,25 @@ describe('calculateSprintStoryPoints', () => {
     expect(result.committed).toBe(14); // 0 + 1 + 13 + 0 = 14 (null treated as 0)
     expect(result.completed).toBe(14);
     expect(result.completedIssueCount).toBe(4);
+  });
+
+  test('should mock getBoardToDoStatusIds correctly', async () => {
+    // Arrange
+    const boardId = 'board-123';
+    const toDoStatusIds = ['10000', '10001'];
+    const successResponse: JiraApiResponse<readonly string[]> = {
+      data: toDoStatusIds,
+      success: true
+    };
+    
+    const mcpClient = createMockMcpClient(successResponse);
+    mcpClient.getBoardToDoStatusIds = jest.fn().mockResolvedValue(successResponse);
+
+    // Act
+    const result = await mcpClient.getBoardToDoStatusIds(boardId);
+
+    // Assert
+    expect(result).toEqual(successResponse);
+    expect(mcpClient.getBoardToDoStatusIds).toHaveBeenCalledWith(boardId);
   });
 });
