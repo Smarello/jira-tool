@@ -111,10 +111,8 @@ export const GET: APIRoute = async ({ params }) => {
 
     // Calculate real metrics for active sprint only (if exists)
     if (activeSprint) {
-      const issuesApi = mcpClient.getIssuesApi();
       activeSprintVelocity = await calculateRealSprintVelocity(
         activeSprint,
-        issuesApi,
         mcpClient
       );
     }

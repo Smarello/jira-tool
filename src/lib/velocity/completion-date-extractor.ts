@@ -35,14 +35,23 @@ export async function extractCompletionDate(
     return null;
   }
 
-  // Get changelog and find transition date
-  const changelogApi = mcpClient.getChangelogApi();
-  const doneTransitionDate = await changelogApi.findDoneColumnTransitionDateById(
-    issue.key,
-    doneStatusIds
-  );
+  // Get issue changelog and find transition date
+  const changelogResponse = await mcpClient.getIssueChangelog(issue.key);
+  
+  if (!changelogResponse.success || !changelogResponse.data) {
+    return null;
+  }
 
-  return doneTransitionDate;
+  // Find transition date using business logic
+  const changelog = changelogResponse.data;
+  
+  for (const statusId of doneStatusIds) {
+    if (changelog.statusTransitionIndex.has(statusId)) {
+      return changelog.statusTransitionIndex.get(statusId)!;
+    }
+  }
+
+  return null;
 }
 
 /**

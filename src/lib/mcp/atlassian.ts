@@ -6,6 +6,8 @@
 import type { JiraBoard } from '../jira/boards';
 import type { JiraSprint } from '../jira/boards';
 import type { JiraApiResponse } from '../jira/types';
+import type { JiraIssueWithPoints } from '../jira/issues-api';
+import type { IssueChangelog } from '../jira/changelog-api';
 import { createJiraConfig } from '../jira/config.js';
 import { JiraApiClient } from '../jira/api-client.js';
 import { JiraBoardsApi } from '../jira/boards-api.js';
@@ -23,9 +25,9 @@ export interface McpAtlassianClient {
   getBoardSprints(boardId: string): Promise<JiraApiResponse<readonly JiraSprint[]>>;
   getBoardInfo(boardId: string): Promise<JiraApiResponse<JiraBoard>>;
   getSprintDetails(sprintId: string): Promise<JiraApiResponse<JiraSprint>>;
-  getIssuesApi(): JiraIssuesApi;
-  getBoardsApi(): JiraBoardsApi;
-  getChangelogApi(): JiraChangelogApi;
+  getSprintIssues(sprintId: string): Promise<JiraApiResponse<readonly JiraIssueWithPoints[]>>;
+  getBoardDoneStatusIds(boardId: string): Promise<JiraApiResponse<readonly string[]>>;
+  getIssueChangelog(issueKey: string): Promise<JiraApiResponse<IssueChangelog>>;
 }
 
 /**
@@ -239,16 +241,71 @@ class McpAtlassianClientImpl implements McpAtlassianClient {
     }
   }
 
-  getIssuesApi(): JiraIssuesApi {
-    return this.issuesApi;
+  async getSprintIssues(sprintId: string): Promise<JiraApiResponse<readonly JiraIssueWithPoints[]>> {
+    try {
+      // Real API call using dependency-injected service
+      const issues = await this.issuesApi.fetchSprintIssues(sprintId);
+      
+      return {
+        data: issues,
+        success: true
+      };
+    } catch (error) {
+      // Graceful degradation: fallback to empty array
+      console.warn('Jira API failed, returning empty issues array:', error);
+      
+      return {
+        data: [],
+        success: false,
+        error: error instanceof Error ? error.message : 'API failed to fetch sprint issues'
+      };
+    }
   }
 
-  getBoardsApi(): JiraBoardsApi {
-    return this.boardsApi;
+  async getBoardDoneStatusIds(boardId: string): Promise<JiraApiResponse<readonly string[]>> {
+    try {
+      // Real API call using dependency-injected service
+      const statusIds = await this.boardsApi.getDoneColumnStatusIds(boardId);
+      
+      return {
+        data: statusIds,
+        success: true
+      };
+    } catch (error) {
+      // Graceful degradation: fallback to empty array
+      console.warn('Jira API failed to fetch board done status IDs:', error);
+      
+      return {
+        data: [],
+        success: false,
+        error: error instanceof Error ? error.message : 'API failed to fetch board done status IDs'
+      };
+    }
   }
 
-  getChangelogApi(): JiraChangelogApi {
-    return this.changelogApi;
+  async getIssueChangelog(issueKey: string): Promise<JiraApiResponse<IssueChangelog>> {
+    try {
+      // Real API call using dependency-injected service
+      const changelog = await this.changelogApi.fetchIssueChangelog(issueKey);
+      
+      return {
+        data: changelog,
+        success: true
+      };
+    } catch (error) {
+      // Graceful degradation: fallback to empty changelog
+      console.warn('Jira Changelog API failed, returning empty changelog:', error);
+      
+      return {
+        data: {
+          issueKey,
+          histories: [],
+          statusTransitionIndex: new Map()
+        },
+        success: false,
+        error: error instanceof Error ? error.message : 'API failed to fetch issue changelog'
+      };
+    }
   }
 }
 

@@ -4,12 +4,13 @@
  */
 
 import type { JiraSprint } from '../jira/boards.js';
-import type { JiraIssuesApi, JiraIssueWithPoints } from '../jira/issues-api.js';
+import type { JiraIssueWithPoints, StoryPointsData } from '../jira/issues-api.js';
 import type { McpAtlassianClient } from '../mcp/atlassian.js';
 import { calculateSprintVelocity, type SprintVelocity } from './mock-calculator.js';
 import { batchValidateSprintVelocity } from './batch-validator.js';
 import type { SprintFromDatabase } from '../database/services/database-first-loader.js';
 import { extractCompletionDatesForSprint } from './completion-date-extractor.js';
+import { validateIssuesForVelocity, calculateValidatedStoryPoints } from './advanced-validator.js';
 import {
   batchCalculateSprintVelocityWithDatabase,
   issuesHaveCompletionDates
@@ -39,13 +40,12 @@ export interface BatchVelocityResult {
  */
 export async function calculateRealSprintVelocity(
   sprint: JiraSprint,
-  issuesApi: JiraIssuesApi,
   mcpClient: McpAtlassianClient
 ): Promise<SprintVelocity> {
   try {
     // Fetch real story points data from Jira issues
     console.log(`---------> Fetched ${sprint.name} for velocity calculation`);
-    const storyPointsData = await issuesApi.calculateSprintStoryPoints(
+    const storyPointsData = await calculateSprintStoryPoints(
       sprint.id, 
       sprint, 
       sprint.originBoardId,
@@ -72,7 +72,6 @@ export async function calculateRealSprintVelocity(
  */
 export async function calculateRealSprintsVelocity(
   sprints: readonly JiraSprint[],
-  issuesApi: JiraIssuesApi,
   mcpClient: McpAtlassianClient
 ): Promise<readonly SprintVelocity[]> {
   console.log(`[Calculator] Starting velocity calculation for ${sprints.length} sprints`);
@@ -82,8 +81,13 @@ export async function calculateRealSprintsVelocity(
   for (const sprint of sprints) {
     try {
       console.log(`[Calculator] Fetching issues for sprint ${sprint.name}`);
-      const issues = await issuesApi.fetchSprintIssues(sprint.id);
-      sprintIssuesPairs.push({ sprint, issues });
+      const issuesResponse = await mcpClient.getSprintIssues(sprint.id);
+      if (!issuesResponse.success) {
+        console.warn(`[Calculator] Failed to fetch issues for sprint ${sprint.id}:`, issuesResponse.error);
+        sprintIssuesPairs.push({ sprint, issues: [] });
+      } else {
+        sprintIssuesPairs.push({ sprint, issues: issuesResponse.data });
+      }
     } catch (error) {
       console.warn(`[Calculator] Failed to fetch issues for sprint ${sprint.id}:`, error);
       sprintIssuesPairs.push({ sprint, issues: [] });
@@ -124,7 +128,6 @@ export async function calculateRealSprintsVelocity(
  */
 export async function calculateRealSprintsVelocityWithProgress(
   sprints: readonly JiraSprint[],
-  issuesApi: JiraIssuesApi,
   mcpClient: McpAtlassianClient,
   progressCallback: (currentSprint: number, sprintName: string, phase: string) => void
 ): Promise<readonly SprintVelocity[]> {
@@ -139,8 +142,13 @@ export async function calculateRealSprintsVelocityWithProgress(
     
     try {
       console.log(`[Calculator] Fetching issues for sprint ${sprint.name}`);
-      const issues = await issuesApi.fetchSprintIssues(sprint.id);
-      sprintIssuesPairs.push({ sprint, issues });
+      const issuesResponse = await mcpClient.getSprintIssues(sprint.id);
+      if (!issuesResponse.success) {
+        console.warn(`[Calculator] Failed to fetch issues for sprint ${sprint.id}:`, issuesResponse.error);
+        sprintIssuesPairs.push({ sprint, issues: [] });
+      } else {
+        sprintIssuesPairs.push({ sprint, issues: issuesResponse.data });
+      }
     } catch (error) {
       console.warn(`[Calculator] Failed to fetch issues for sprint ${sprint.id}:`, error);
       sprintIssuesPairs.push({ sprint, issues: [] });
@@ -193,7 +201,6 @@ export async function calculateRealSprintsVelocityWithProgress(
  */
 export async function calculateRealSprintsVelocityWithIssues(
   sprints: readonly JiraSprint[],
-  issuesApi: JiraIssuesApi,
   mcpClient: McpAtlassianClient
 ): Promise<BatchVelocityResult> {
   console.log(`[Calculator] Starting velocity calculation with issues data for ${sprints.length} sprints`);
@@ -203,7 +210,15 @@ export async function calculateRealSprintsVelocityWithIssues(
   for (const sprint of sprints) {
     try {
       console.log(`[Calculator] Fetching issues for sprint ${sprint.name}`);
-      const rawIssues = await issuesApi.fetchSprintIssues(sprint.id);
+      const issuesResponse = await mcpClient.getSprintIssues(sprint.id);
+      
+      if (!issuesResponse.success) {
+        console.warn(`[Calculator] Failed to fetch issues for sprint ${sprint.id}:`, issuesResponse.error);
+        sprintIssuesPairs.push({ sprint, issues: [] });
+        continue;
+      }
+      
+      const rawIssues = issuesResponse.data;
 
       // Extract completion dates for the issues
       const issuesWithCompletion = await extractCompletionDatesForSprint(
@@ -265,7 +280,6 @@ export async function calculateRealSprintsVelocityWithIssues(
 export async function calculateMixedSprintsVelocityWithIssues(
   sprintsFromDatabase: readonly SprintFromDatabase[],
   sprintsToLoadFromApi: readonly JiraSprint[],
-  issuesApi: JiraIssuesApi,
   mcpClient: McpAtlassianClient
 ): Promise<BatchVelocityResult> {
   console.log(`[Calculator] Starting mixed velocity calculation:`);
@@ -336,7 +350,6 @@ export async function calculateMixedSprintsVelocityWithIssues(
     // Use the version that extracts completion dates!
     const apiResult = await calculateRealSprintsVelocityWithIssues(
       sprintsToLoadFromApi,
-      issuesApi,
       mcpClient
     );
 
@@ -362,10 +375,10 @@ export async function calculateMixedSprintsVelocityWithIssues(
  */
 export async function calculateRealSprintVelocityLegacy(
   sprint: JiraSprint,
-  issuesApi: JiraIssuesApi,
+  _issuesApi: any, // Legacy parameter, ignored
   mcpClient: McpAtlassianClient
 ): Promise<SprintVelocity> {
-  return calculateRealSprintVelocity(sprint, issuesApi, mcpClient);
+  return calculateRealSprintVelocity(sprint, mcpClient);
 }
 
 /**
@@ -391,4 +404,53 @@ export function calculateAverageSprintCompletionRate(
 
   // Return rounded average percentage
   return Math.round(totalCompletionRate / completedSprints.length);
+}
+
+/**
+ * Calculates story points data for a sprint using advanced validation
+ * Following Clean Code: Express intent, single responsibility
+ */
+export async function calculateSprintStoryPoints(
+  sprintId: string, 
+  sprint: JiraSprint, 
+  boardId: string,
+  mcpClient: McpAtlassianClient
+): Promise<StoryPointsData> {
+  const issuesResponse = await mcpClient.getSprintIssues(sprintId);
+  if (!issuesResponse.success) {
+    throw new Error(`Failed to fetch issues for sprint ${sprintId}: ${issuesResponse.error}`);
+  }
+  
+  const issues = issuesResponse.data;
+  const committed = sumStoryPoints(issues);
+  
+  // Use advanced validation with Done column checking
+  const validationResults = await validateIssuesForVelocity(
+    issues, 
+    sprint, 
+    boardId, 
+    mcpClient
+  );
+  
+  const completed = calculateValidatedStoryPoints(issues, validationResults);
+  const completedIssueCount = validationResults.filter(result => 
+    result.isValidForVelocity
+  ).length;
+
+  return {
+    committed,
+    completed,
+    issueCount: issues.length,
+    completedIssueCount
+  };
+}
+
+/**
+ * Sums story points from issues array
+ * Following Clean Code: Single responsibility, immutability
+ */
+function sumStoryPoints(issues: readonly JiraIssueWithPoints[]): number {
+  return issues.reduce((sum, issue) => 
+    sum + (issue.storyPoints || 0), 0
+  );
 }

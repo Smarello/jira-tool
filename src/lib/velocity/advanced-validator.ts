@@ -45,12 +45,26 @@ export async function validateIssueForVelocity(
     };
   }
 
-  // Get changelog and check transition date in one operation
-  const changelogApi = mcpClient.getChangelogApi();
-  const doneTransitionDate = await changelogApi.findDoneColumnTransitionDateById(
-    issue.key,
-    doneStatusIds
-  );
+  // Get issue changelog and find transition date
+  const changelogResponse = await mcpClient.getIssueChangelog(issue.key);
+  
+  if (!changelogResponse.success || !changelogResponse.data) {
+    return {
+      isValidForVelocity: false,
+      reason: 'not_valid'
+    };
+  }
+
+  // Find transition date using business logic
+  const changelog = changelogResponse.data;
+  let doneTransitionDate: string | null = null;
+  
+  for (const statusId of doneStatusIds) {
+    if (changelog.statusTransitionIndex.has(statusId)) {
+      doneTransitionDate = changelog.statusTransitionIndex.get(statusId)!;
+      break;
+    }
+  }
 
   if (!doneTransitionDate) {
     return {

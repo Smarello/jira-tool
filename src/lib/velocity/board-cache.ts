@@ -69,8 +69,13 @@ export async function getDoneStatusIdsForBoard(
   console.log(`[BoardCache] Making API call to: /rest/agile/1.0/board/${boardId}/configuration`);
 
   try {
-    const boardsApi = mcpClient.getBoardsApi();
-    const doneStatusIds = await boardsApi.getDoneColumnStatusIds(boardId);
+    const result = await mcpClient.getBoardDoneStatusIds(boardId);
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to fetch board done status IDs');
+    }
+    
+    const doneStatusIds = result.data;
     
     console.log(`[BoardCache] API call successful for board ${boardId} - found ${doneStatusIds.length} completion status IDs from last column`);
     

@@ -106,10 +106,8 @@ export const GET: APIRoute = async ({ params }) => {
     const recentSprints = sprintsResponse.data.slice(-SUMMARY_SPRINT_LIMIT);
 
     // Calculate velocity for recent sprints only
-    const issuesApi = mcpClient.getIssuesApi();
     const sprintVelocities = await calculateRealSprintsVelocity(
       recentSprints,
-      issuesApi,
       mcpClient
     );
 

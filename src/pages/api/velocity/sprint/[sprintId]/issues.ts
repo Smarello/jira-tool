@@ -28,7 +28,6 @@ export const GET: APIRoute = async ({ params }) => {
   try {
     // Use MCP client for consistent API access
     const mcpClient = getMcpAtlassianClient();
-    const issuesApi = mcpClient.getIssuesApi();
     
     // Get sprint details for date validation
     const sprintResponse = await mcpClient.getSprintDetails(sprintId);
@@ -50,7 +49,22 @@ export const GET: APIRoute = async ({ params }) => {
     const boardId = sprint.originBoardId;
     
     // Fetch sprint issues with story points
-    const sprintIssues = await issuesApi.fetchSprintIssues(sprintId);
+    const sprintIssuesResponse = await mcpClient.getSprintIssues(sprintId);
+    if (!sprintIssuesResponse.success) {
+      return new Response(
+        JSON.stringify({
+          error: sprintIssuesResponse.error || 'Failed to fetch sprint issues',
+          sprintId,
+          issues: []
+        }),
+        { 
+          status: 500, 
+          headers: { 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+    
+    const sprintIssues = sprintIssuesResponse.data;
     
     // Handle empty sprint (no issues found)
     if (sprintIssues.length === 0) {

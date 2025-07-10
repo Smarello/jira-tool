@@ -127,10 +127,8 @@ export const GET: APIRoute = async ({ params, url }) => {
     const boardName = boardResponse.success ? boardResponse.data.name : `Board ${boardId}`;
 
     // Calculate velocity for requested page
-    const issuesApi = mcpClient.getIssuesApi();
     const sprintVelocities = await calculateRealSprintsVelocity(
       sprintsForPage,
-      issuesApi,
       mcpClient
     );
 

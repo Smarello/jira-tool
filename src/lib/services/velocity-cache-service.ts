@@ -5,7 +5,6 @@
  */
 
 import type { JiraSprint } from '../jira/boards';
-import type { JiraIssuesApi } from '../jira/issues-api';
 import type { McpAtlassianClient } from '../mcp/atlassian';
 import type { SprintVelocity } from '../velocity/mock-calculator';
 import { calculateRealSprintsVelocity } from '../velocity/calculator';
@@ -80,13 +79,12 @@ export class VelocityCacheService {
   async getVelocityData(
     boardId: string,
     sprints: readonly JiraSprint[],
-    issuesApi: JiraIssuesApi,
     mcpClient: McpAtlassianClient,
     forceRefresh = false
   ): Promise<CachedVelocityData> {
     // If database caching is disabled, always calculate fresh
     if (!this.config.enableDatabaseCache || forceRefresh) {
-      return await this.calculateFreshVelocityData(boardId, sprints, issuesApi, mcpClient);
+      return await this.calculateFreshVelocityData(boardId, sprints, mcpClient);
     }
 
     try {
@@ -124,7 +122,7 @@ export class VelocityCacheService {
 
       // Step 4: Fetch missing sprints from JIRA and cache them
       if (missingSprintIds.length > 0) {
-        await this.fetchAndCacheMissingSprints(missingSprintIds, issuesApi);
+        await this.fetchAndCacheMissingSprints(missingSprintIds, mcpClient);
 
         // Get updated cached data
         const updatedCachedSprints = await this.databaseService.getCachedClosedSprints(boardId, 50);
@@ -140,11 +138,11 @@ export class VelocityCacheService {
       }
 
       // Step 5: Fallback to full fresh calculation
-      return await this.calculateAndCacheFreshData(boardId, sprints, issuesApi, mcpClient);
+      return await this.calculateAndCacheFreshData(boardId, sprints, mcpClient);
 
     } catch (error) {
       console.warn('Database cache error, falling back to fresh calculation:', error);
-      return await this.calculateFreshVelocityData(boardId, sprints, issuesApi, mcpClient);
+      return await this.calculateFreshVelocityData(boardId, sprints, mcpClient);
     }
   }
 
@@ -189,10 +187,9 @@ export class VelocityCacheService {
   async refreshVelocityData(
     boardId: string,
     sprints: readonly JiraSprint[],
-    issuesApi: JiraIssuesApi,
     mcpClient: McpAtlassianClient
   ): Promise<CachedVelocityData> {
-    return await this.calculateAndCacheFreshData(boardId, sprints, issuesApi, mcpClient);
+    return await this.calculateAndCacheFreshData(boardId, sprints, mcpClient);
   }
 
   /**
@@ -202,10 +199,9 @@ export class VelocityCacheService {
   private async calculateFreshVelocityData(
     boardId: string,
     sprints: readonly JiraSprint[],
-    issuesApi: JiraIssuesApi,
     mcpClient: McpAtlassianClient
   ): Promise<CachedVelocityData> {
-    const velocities = await calculateRealSprintsVelocity(sprints, issuesApi, mcpClient);
+    const velocities = await calculateRealSprintsVelocity(sprints, mcpClient);
 
     return {
       velocities,
@@ -223,16 +219,15 @@ export class VelocityCacheService {
   private async calculateAndCacheFreshData(
     boardId: string,
     sprints: readonly JiraSprint[],
-    issuesApi: JiraIssuesApi,
     mcpClient: McpAtlassianClient
   ): Promise<CachedVelocityData> {
     // Calculate fresh velocity data
-    const velocities = await calculateRealSprintsVelocity(sprints, issuesApi, mcpClient);
+    const velocities = await calculateRealSprintsVelocity(sprints, mcpClient);
 
     // Cache closed sprints for future use
     console.error(`---------------> caching closed sprints: ${this.config.enableDatabaseCache}`);
     if (this.config.enableDatabaseCache && this.databaseService) {
-      await this.cacheClosedSprints(sprints, velocities, issuesApi);
+      await this.cacheClosedSprints(sprints, velocities, mcpClient);
     }
 
     return {
@@ -251,7 +246,7 @@ export class VelocityCacheService {
   private async cacheClosedSprints(
     sprints: readonly JiraSprint[],
     _velocities: readonly SprintVelocity[],
-    issuesApi: JiraIssuesApi
+    mcpClient: McpAtlassianClient
   ): Promise<void> {
     // Ensure database service is available
     if (!this.databaseService) {
@@ -271,7 +266,14 @@ export class VelocityCacheService {
         
         if (shouldRefresh) {
           // Get issues for this sprint
-          const sprintIssues = await issuesApi.fetchSprintIssues(sprint.id);
+          const sprintIssuesResponse = await mcpClient.getSprintIssues(sprint.id);
+          
+          if (!sprintIssuesResponse.success) {
+            console.warn(`Failed to fetch issues for sprint ${sprint.id}:`, sprintIssuesResponse.error);
+            continue;
+          }
+          
+          const sprintIssues = sprintIssuesResponse.data;
           
           // Find velocity data for this sprint (currently unused)
           // const velocityData = velocities.find(v => v.sprint.id === sprint.id);
@@ -371,7 +373,7 @@ export class VelocityCacheService {
    */
   private async fetchAndCacheMissingSprints(
     missingSprintIds: readonly string[],
-    _issuesApi: JiraIssuesApi
+    _mcpClient: McpAtlassianClient
   ): Promise<void> {
     console.log(`🔄 Fetching ${missingSprintIds.length} missing sprints from JIRA...`);
 
@@ -446,8 +448,7 @@ export class VelocityCacheService {
     }
 
     const closedSprints = sprintsResponse.data.filter(sprint => sprint.state === 'closed');
-    const issuesApi = mcpClient.getIssuesApi();
-    const velocities = await calculateRealSprintsVelocity(closedSprints, issuesApi, mcpClient);
+    const velocities = await calculateRealSprintsVelocity(closedSprints, mcpClient);
 
     return {
       velocities,
@@ -473,14 +474,17 @@ export class VelocityCacheService {
     const sprintsResponse = await mcpClient.getBoardSprints(boardId);
     if (sprintsResponse.success && this.databaseService) {
       const closedSprints = sprintsResponse.data.filter(sprint => sprint.state === 'closed');
-      const issuesApi = mcpClient.getIssuesApi();
 
       // Cache each closed sprint
       for (const sprint of closedSprints) {
         try {
-          const sprintIssues = await issuesApi.fetchSprintIssues(sprint.id);
-          await this.databaseService.saveClosedSprint(sprint, sprintIssues);
-          console.log(`✅ Cached sprint: ${sprint.name}`);
+          const sprintIssuesResponse = await mcpClient.getSprintIssues(sprint.id);
+          if (sprintIssuesResponse.success) {
+            await this.databaseService.saveClosedSprint(sprint, sprintIssuesResponse.data);
+            console.log(`✅ Cached sprint: ${sprint.name}`);
+          } else {
+            console.warn(`Failed to fetch issues for sprint ${sprint.id}:`, sprintIssuesResponse.error);
+          }
         } catch (error) {
           console.warn(`Failed to cache sprint ${sprint.id}:`, error);
         }

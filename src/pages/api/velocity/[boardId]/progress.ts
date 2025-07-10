@@ -160,11 +160,8 @@ export const GET: APIRoute = async ({ params, url }) => {
           });
 
           // Calculate velocity with progress callbacks
-          const issuesApi = mcpClient.getIssuesApi();
-          
           const sprintVelocities = await calculateRealSprintsVelocityWithProgress(
             sprintsToProcess,
-            issuesApi,
             mcpClient,
             (currentSprint: number, sprintName: string, phase: string) => {
               let message = '';

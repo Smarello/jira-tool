@@ -24,13 +24,33 @@ export async function isIssueCompletedWithinSprint(
     return false;
   }
 
-  // Check if issue was in Done column at sprint end using status IDs
-  const changelogApi = mcpClient.getChangelogApi();
-  return await changelogApi.wasIssueInDoneAtDateById(
-    issue.key,
-    doneStatusIds,
-    sprint.endDate
-  );
+  // Get issue changelog and check if was in Done at sprint end
+  const changelogResponse = await mcpClient.getIssueChangelog(issue.key);
+  
+  if (!changelogResponse.success || !changelogResponse.data) {
+    return false;
+  }
+
+  // Find transition date using business logic
+  const changelog = changelogResponse.data;
+  let transitionDate: string | null = null;
+  
+  for (const statusId of doneStatusIds) {
+    if (changelog.statusTransitionIndex.has(statusId)) {
+      transitionDate = changelog.statusTransitionIndex.get(statusId)!;
+      break;
+    }
+  }
+
+  if (!transitionDate) {
+    return false;
+  }
+
+  // Check if transition happened before or at target date
+  const transitionDateTime = new Date(transitionDate);
+  const targetDateTime = new Date(sprint.endDate);
+  
+  return transitionDateTime <= targetDateTime;
 }
 
 /**

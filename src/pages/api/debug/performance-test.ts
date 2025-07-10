@@ -31,10 +31,9 @@ export const GET: APIRoute = async ({ url }) => {
     const oldApproachStart = Date.now();
     
     for (let i = 0; i < 5; i++) {
-      const boardsApi = mcpClient.getBoardsApi();
       try {
-        await boardsApi.getDoneColumnStatusIds(boardId);
-        testResults.push({ call: i + 1, success: true });
+        const result = await mcpClient.getBoardDoneStatusIds(boardId);
+        testResults.push({ call: i + 1, success: result.success });
       } catch (error) {
         testResults.push({ call: i + 1, success: false, error: error instanceof Error ? error.message : 'Unknown error' });
       }

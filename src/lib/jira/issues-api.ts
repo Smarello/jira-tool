@@ -6,8 +6,6 @@
 import type { JiraApiClient } from './api-client.js';
 import type { JiraIssue } from './types.js';
 import type { JiraSprint } from './boards.js';
-import type { McpAtlassianClient } from '../mcp/atlassian.js';
-import { validateIssuesForVelocity, calculateValidatedStoryPoints } from '../velocity/advanced-validator.js';
 
 export interface StoryPointsData {
   readonly committed: number;
@@ -111,41 +109,6 @@ export class JiraIssuesApi {
       storyPoints: this.extractStoryPoints(issue, storyPointsField),
       statusCategoryChangedDate: this.extractStatusCategoryChangedDate(issue)
     }));
-  }
-
-  /**
-   * Calculates story points data for a sprint using advanced validation
-   * Following Clean Code: Express intent, single responsibility
-   */
-  async calculateSprintStoryPoints(
-    sprintId: string, 
-    sprint: JiraSprint, 
-    boardId: string,
-    mcpClient: McpAtlassianClient
-  ): Promise<StoryPointsData> {
-    const issues = await this.fetchSprintIssues(sprintId);
-    
-    const committed = this.sumStoryPoints(issues);
-    
-    // Use advanced validation with Done column checking
-    const validationResults = await validateIssuesForVelocity(
-      issues, 
-      sprint, 
-      boardId, 
-      mcpClient
-    );
-    
-    const completed = calculateValidatedStoryPoints(issues, validationResults);
-    const completedIssueCount = validationResults.filter(result => 
-      result.isValidForVelocity
-    ).length;
-
-    return {
-      committed,
-      completed,
-      issueCount: issues.length,
-      completedIssueCount
-    };
   }
 
   /**

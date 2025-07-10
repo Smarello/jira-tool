@@ -187,11 +187,9 @@ export const GET: APIRoute = async ({ params, url }) => {
       console.log(`[Batch] Sprints to load from API: ${dbFirstResult.sprintsToLoadFromApi.length}`);
 
       // Calculate velocity using mixed data sources
-      const issuesApi = mcpClient.getIssuesApi();
       batchResult = await calculateMixedSprintsVelocityWithIssues(
         dbFirstResult.sprintsFromDatabase,
         dbFirstResult.sprintsToLoadFromApi,
-        issuesApi,
         mcpClient
       );
 
@@ -199,10 +197,8 @@ export const GET: APIRoute = async ({ params, url }) => {
       // Fallback to full API loading if database-first fails
       console.warn('[Batch] Database-first strategy failed, falling back to API-only:', dbError);
 
-      const issuesApi = mcpClient.getIssuesApi();
       batchResult = await calculateRealSprintsVelocityWithIssues(
         safeBatchSprints,
-        issuesApi,
         mcpClient
       );
     }
