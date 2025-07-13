@@ -22,7 +22,8 @@ import {
 export async function calculateKanbanAnalytics(
   boardId: string,
   mcpClient: McpAtlassianClient,
-  timePeriodFilter?: TimePeriodFilter
+  timePeriodFilter?: TimePeriodFilter,
+  issueTypesFilter?: string[]
 ): Promise<KanbanAnalyticsResult> {
   console.log(`[KanbanAnalyticsService] Starting analytics calculation for board ${boardId}`);
   
@@ -41,8 +42,14 @@ export async function calculateKanbanAnalytics(
     console.log(`[KanbanAnalyticsService] Fetched ${allIssues.length} issues for board ${boardId}`);
 
     // Apply time period filter if specified
-    const filteredIssues = timePeriodFilter ? filterIssuesByTimePeriod(allIssues, timePeriodFilter) : allIssues;
+    let filteredIssues = timePeriodFilter ? filterIssuesByTimePeriod(allIssues, timePeriodFilter) : allIssues;
     console.log(`[KanbanAnalyticsService] After time period filter: ${filteredIssues.length} issues`);
+
+    // Apply issue types filter if specified
+    if (issueTypesFilter && issueTypesFilter.length > 0) {
+      filteredIssues = filterIssuesByType(filteredIssues, issueTypesFilter);
+      console.log(`[KanbanAnalyticsService] After issue types filter [${issueTypesFilter.join(', ')}]: ${filteredIssues.length} issues`);
+    }
 
     // Calculate cycle times for filtered issues
     const cycleTimeResults = await calculateIssuesCycleTime(filteredIssues, boardId, mcpClient);
@@ -278,5 +285,19 @@ function filterIssuesByTimePeriod(issues: readonly any[], timePeriodFilter: Time
 
     const issueDate = new Date(referenceDate);
     return issueDate >= startDate && issueDate <= endDate;
+  });
+}
+
+/**
+ * Filters issues by issue type
+ * Following Clean Code: Pure function, single responsibility
+ */
+function filterIssuesByType(issues: readonly any[], issueTypesFilter: string[]): readonly any[] {
+  return issues.filter(issue => {
+    if (!issue.issueType || !issue.issueType.name) {
+      return false; // Exclude issues without issue type
+    }
+    
+    return issueTypesFilter.includes(issue.issueType.name);
   });
 }

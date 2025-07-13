@@ -7,6 +7,7 @@
 
 import KanbanProgressLoader from '../ui/KanbanProgressLoader.astro';
 import PeriodSelector from '../ui/PeriodSelector.astro';
+import IssueTypeSelector from '../ui/IssueTypeSelector.astro';
 
 export interface Props {
   boardId: string | null;
@@ -17,14 +18,46 @@ const { boardId, loading = false } = Astro.props;
 ---
 
 <div class="kanban-analytics">
-  <!-- Period Selection Controls -->
-  <div class="period-selection-section mb-6">
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-      <PeriodSelector
-        selectedPeriod="last-15-days"
-        disabled={!boardId || loading}
-        class="max-w-md"
-      />
+  <!-- Filter Selection Section -->
+  <div class="filter-selection-section mb-6">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">
+        Analytics Filters
+      </h3>
+      
+      <!-- Filters Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Period Selector -->
+        <div>
+          <PeriodSelector
+            selectedPeriod="last-15-days"
+            disabled={!boardId || loading}
+            class="period-selector-component"
+          />
+        </div>
+        
+        <!-- Issue Type Selector -->
+        <div>
+          <IssueTypeSelector
+            disabled={!boardId || loading}
+            class="issue-type-selector-component"
+          />
+        </div>
+      </div>
+      
+      <!-- Apply Filters Button -->
+      <div class="mt-6 flex justify-end">
+        <button
+          type="button"
+          id="apply-filters-button"
+          disabled={!boardId || loading}
+          class="bg-purple-600 text-white px-6 py-2 rounded-md text-sm font-medium
+                 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2
+                 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+        >
+          Apply Selection
+        </button>
+      </div>
     </div>
   </div>
 
@@ -254,6 +287,10 @@ const { boardId, loading = false } = Astro.props;
     @apply w-full;
   }
   
+  .filter-selection-section {
+    @apply w-full;
+  }
+  
   .kanban-content-section {
     @apply w-full;
   }
@@ -334,6 +371,7 @@ const { boardId, loading = false } = Astro.props;
   let cancelController: AbortController | null = null;
   let currentPeriod: string = 'last-15-days';
   let currentCustomRange: { start: string; end: string } | null = null;
+  let currentIssueTypes: string[] = [];
   
   /**
    * Shows loading overlay with progress tracking
@@ -528,19 +566,23 @@ const { boardId, loading = false } = Astro.props;
   }
   
   /**
-   * Loads Kanban analytics data for a specific board with optional period filter
+   * Loads Kanban analytics data for a specific board with optional filters
    * Following Clean Code: Express intent, async/await pattern
    */
-  async function loadKanbanAnalytics(boardId: string, period?: string, customRange?: { start: string; end: string }) {
+  async function loadKanbanAnalytics(boardId: string, period?: string, customRange?: { start: string; end: string }, issueTypes?: string[]) {
     if (!boardId) return;
     
     // Update current state
     currentBoardId = boardId;
     if (period) currentPeriod = period;
     if (customRange) currentCustomRange = customRange;
+    if (issueTypes) currentIssueTypes = issueTypes;
     
-    // Enable PeriodSelector now that we have a board
-    updatePeriodSelectorState(boardId, false);
+    // Enable filters now that we have a board
+    updateFiltersState(boardId, false);
+    
+    // Load issue types if not already loaded or board changed
+    await loadIssueTypesForBoard(boardId);
     
     // Cancel any existing request
     if (cancelController) {
@@ -548,22 +590,26 @@ const { boardId, loading = false } = Astro.props;
     }
     
     isLoading = true;
-    updatePeriodSelectorState(boardId, true); // Disable during loading
+    updateFiltersState(boardId, true); // Disable during loading
     cancelController = new AbortController();
     
-    console.log(`[KanbanAnalytics] Loading analytics for board: ${boardId}, period: ${currentPeriod}`);
+    console.log(`[KanbanAnalytics] Loading analytics for board: ${boardId}, period: ${currentPeriod}, issueTypes: [${currentIssueTypes.join(', ')}]`);
     
     try {
       showLoadingOverlay();
       updateProgressLoader('issues', 10, 'Fetching board issues...');
       
-      // Build API URL with period parameters
+      // Build API URL with filters
       const url = new URL(`/api/kanban/${boardId}/analytics`, window.location.origin);
       url.searchParams.set('period', currentPeriod);
       
       if (currentPeriod === 'custom' && currentCustomRange) {
         url.searchParams.set('start', currentCustomRange.start);
         url.searchParams.set('end', currentCustomRange.end);
+      }
+      
+      if (currentIssueTypes.length > 0) {
+        url.searchParams.set('issueTypes', currentIssueTypes.join(','));
       }
       
       const response = await fetch(url.toString(), {
@@ -598,7 +644,7 @@ const { boardId, loading = false } = Astro.props;
       showErrorState(errorMessage);
     } finally {
       isLoading = false;
-      updatePeriodSelectorState(currentBoardId, false); // Re-enable after loading
+      updateFiltersState(currentBoardId, false); // Re-enable after loading
       cancelController = null;
     }
   }
@@ -625,8 +671,94 @@ const { boardId, loading = false } = Astro.props;
     
     console.log('[KanbanAnalytics] Period changed:', { period, customRange });
     
-    // Reload analytics with new period
-    loadKanbanAnalytics(currentBoardId, period, customRange);
+    // Update current state but don't reload automatically
+    currentPeriod = period;
+    currentCustomRange = customRange;
+  }
+  
+  /**
+   * Handles apply filters button click
+   * Following Clean Code: Express intent, unified action
+   */
+  function handleApplyFilters() {
+    if (!currentBoardId) return;
+    
+    // Get current issue types selection
+    const issueTypeSelector = (window as any).issueTypeSelector;
+    if (issueTypeSelector) {
+      currentIssueTypes = issueTypeSelector.getSelectedIssueTypes();
+    }
+    
+    // Get custom date range if period is custom
+    if (currentPeriod === 'custom') {
+      const startInput = document.getElementById('custom-start') as HTMLInputElement;
+      const endInput = document.getElementById('custom-end') as HTMLInputElement;
+      
+      if (startInput && endInput) {
+        const startDate = startInput.value;
+        const endDate = endInput.value;
+        
+        // Basic validation
+        if (!startDate || !endDate) {
+          alert('Please select both start and end dates');
+          return;
+        }
+        
+        if (new Date(startDate) > new Date(endDate)) {
+          alert('Start date must be before end date');
+          return;
+        }
+        
+        currentCustomRange = { start: startDate, end: endDate };
+      }
+    } else {
+      currentCustomRange = null;
+    }
+    
+    console.log('[KanbanAnalytics] Applying filters:', { 
+      period: currentPeriod, 
+      customRange: currentCustomRange,
+      issueTypes: currentIssueTypes 
+    });
+    
+    // Reload analytics with current filters
+    loadKanbanAnalytics(currentBoardId, currentPeriod, currentCustomRange || undefined, currentIssueTypes);
+  }
+  
+  /**
+   * Loads issue types for a specific board
+   * Following Clean Code: Express intent, async operation
+   */
+  async function loadIssueTypesForBoard(boardId: string) {
+    const issueTypeSelector = (window as any).issueTypeSelector;
+    if (issueTypeSelector) {
+      await issueTypeSelector.loadIssueTypes(boardId);
+      // Get all issue types as default selection
+      currentIssueTypes = issueTypeSelector.getSelectedIssueTypes();
+    }
+  }
+  
+  /**
+   * Updates all filter components state based on board selection
+   * Following Clean Code: Single responsibility, state management
+   */
+  function updateFiltersState(boardId: string | null, loading: boolean = false) {
+    // Update period selector
+    updatePeriodSelectorState(boardId, loading);
+    
+    // Update issue type selector
+    const issueTypeSelector = (window as any).issueTypeSelector;
+    if (issueTypeSelector) {
+      issueTypeSelector.updateIssueTypeSelectorState(boardId, loading);
+    }
+    
+    // Update apply button
+    const applyButton = document.getElementById('apply-filters-button') as HTMLButtonElement;
+    if (applyButton) {
+      applyButton.disabled = !boardId || loading;
+    }
+    
+    console.log(`[KanbanAnalytics] Filters ${!boardId || loading ? 'disabled' : 'enabled'} (boardId: ${boardId}, loading: ${loading})`);
   }
   
   /**
@@ -654,12 +786,18 @@ const { boardId, loading = false } = Astro.props;
   // Setup event listeners
   document.addEventListener('periodChanged', handlePeriodChange as EventListener);
   
-  // Initialize PeriodSelector state on page load
+  // Initialize filters state on page load
   document.addEventListener('DOMContentLoaded', () => {
+    // Setup apply filters button
+    const applyButton = document.getElementById('apply-filters-button');
+    if (applyButton) {
+      applyButton.addEventListener('click', handleApplyFilters);
+    }
+    
     // Check if we have a board ID available from the parent component
     const kanbanAnalyticsElement = document.querySelector('.kanban-analytics');
     if (kanbanAnalyticsElement && currentBoardId) {
-      updatePeriodSelectorState(currentBoardId, false);
+      updateFiltersState(currentBoardId, false);
     }
   });
   
@@ -667,7 +805,7 @@ const { boardId, loading = false } = Astro.props;
   (window as any).kanbanAnalytics = {
     loadKanbanAnalytics,
     cancelLoading,
-    updatePeriodSelectorState // Export for external board selection events
+    updateFiltersState // Export for external board selection events
   };
   
   // Export for global access (used by progress loader retry button)

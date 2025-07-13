@@ -103,20 +103,6 @@ const defaultStartDate = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOSt
           />
         </div>
       </div>
-      
-      <!-- Apply Button for Custom Dates -->
-      <div class="mt-3">
-        <button
-          type="button"
-          id="apply-custom-dates"
-          disabled={disabled}
-          class="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium
-                 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2
-                 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-        >
-          Apply Custom Period
-        </button>
-      </div>
     </div>
   </div>
 </div>
@@ -169,39 +155,11 @@ const defaultStartDate = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOSt
         customDateRange.className = 'custom-range-visible';
       } else {
         customDateRange.className = 'custom-range-hidden';
-        
-        // For predefined periods, trigger immediate update
-        dispatchPeriodChangeEvent(selectedPeriod);
       }
     }
-  }
-  
-  /**
-   * Handles apply button click for custom dates
-   * Following Clean Code: Express intent, validation
-   */
-  function handleApplyCustomDates() {
-    const startInput = document.getElementById('custom-start') as HTMLInputElement;
-    const endInput = document.getElementById('custom-end') as HTMLInputElement;
     
-    if (!startInput || !endInput) return;
-    
-    const startDate = startInput.value;
-    const endDate = endInput.value;
-    
-    // Basic validation
-    if (!startDate || !endDate) {
-      alert('Please select both start and end dates');
-      return;
-    }
-    
-    if (new Date(startDate) > new Date(endDate)) {
-      alert('Start date must be before end date');
-      return;
-    }
-    
-    // Dispatch custom period change event
-    dispatchPeriodChangeEvent('custom', startDate, endDate);
+    // Always dispatch event but don't auto-apply for any period type
+    dispatchPeriodChangeEvent(selectedPeriod);
   }
   
   /**
@@ -224,21 +182,15 @@ const defaultStartDate = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOSt
   // Event listeners setup
   document.addEventListener('DOMContentLoaded', () => {
     const periodSelect = document.getElementById('period-select');
-    const applyButton = document.getElementById('apply-custom-dates');
     
     if (periodSelect) {
       periodSelect.addEventListener('change', handlePeriodChange);
-    }
-    
-    if (applyButton) {
-      applyButton.addEventListener('click', handleApplyCustomDates);
     }
   });
   
   // Export for external access
   (window as any).periodSelector = {
     handlePeriodChange,
-    handleApplyCustomDates,
     dispatchPeriodChangeEvent
   };
 </script>

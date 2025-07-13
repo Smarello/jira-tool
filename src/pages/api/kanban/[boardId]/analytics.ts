@@ -33,6 +33,10 @@ export const GET: APIRoute = async ({ params, url }) => {
     const customStart = url.searchParams.get('start');
     const customEnd = url.searchParams.get('end');
     
+    // Parse query parameters for issue types filter
+    const issueTypesParam = url.searchParams.get('issueTypes');
+    const selectedIssueTypes = issueTypesParam ? issueTypesParam.split(',').filter(type => type.trim()) : undefined;
+    
     let timePeriodFilter: TimePeriodFilter | undefined;
     
     if (timePeriodType && Object.values(TimePeriod).includes(timePeriodType)) {
@@ -46,8 +50,12 @@ export const GET: APIRoute = async ({ params, url }) => {
       console.log(`[KanbanAnalyticsAPI] Using time period filter:`, timePeriodFilter);
     }
     
+    if (selectedIssueTypes && selectedIssueTypes.length > 0) {
+      console.log(`[KanbanAnalyticsAPI] Using issue types filter:`, selectedIssueTypes);
+    }
+    
     const mcpClient = getMcpAtlassianClient();
-    const analytics = await calculateKanbanAnalytics(boardId, mcpClient, timePeriodFilter);
+    const analytics = await calculateKanbanAnalytics(boardId, mcpClient, timePeriodFilter, selectedIssueTypes);
     
     console.log(`[KanbanAnalyticsAPI] Analytics calculated successfully for board ${boardId}`);
     console.log(`  - Total issues: ${analytics.totalIssues}`);

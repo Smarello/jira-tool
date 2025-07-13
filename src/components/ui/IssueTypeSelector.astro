@@ -1,0 +1,473 @@
+---
+/**
+ * Issue Type Selector Component
+ * Multi-select dropdown for filtering Kanban analytics by issue types
+ * Following Clean Code: Single responsibility, reusable component
+ */
+
+export interface Props {
+  selectedIssueTypes?: string[];
+  disabled?: boolean;
+  class?: string;
+}
+
+const { selectedIssueTypes = [], disabled = false, class: className = '' } = Astro.props;
+---
+
+<div class={`issue-type-selector ${className}`}>
+  <label for="issue-type-select" class="block text-sm font-medium text-gray-700 mb-2">
+    Issue Types
+  </label>
+  
+  <!-- Multi-select dropdown container -->
+  <div class="relative">
+    <button
+      id="issue-type-dropdown-button"
+      type="button"
+      class="relative w-full bg-white border border-gray-300 rounded-md shadow-sm pl-3 pr-10 py-2 text-left cursor-default focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed sm:text-sm"
+      disabled={disabled}
+    >
+      <span id="issue-type-selected-text" class="block truncate text-gray-500">
+        Select issue types...
+      </span>
+      <span class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+        <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+        </svg>
+      </span>
+    </button>
+
+    <!-- Dropdown menu -->
+    <div
+      id="issue-type-dropdown-menu"
+      class="hidden absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm"
+    >
+      <!-- Loading state -->
+      <div id="issue-type-loading" class="px-3 py-2 text-sm text-gray-500">
+        Loading issue types...
+      </div>
+      
+      <!-- No issue types state -->
+      <div id="issue-type-empty" class="hidden px-3 py-2 text-sm text-gray-500">
+        No issue types found
+      </div>
+      
+      <!-- Issue types list -->
+      <div id="issue-type-list" class="hidden">
+        <!-- Select All option -->
+        <div class="px-3 py-2 border-b border-gray-200">
+          <label class="flex items-center cursor-pointer hover:bg-gray-50 rounded px-2 py-1">
+            <input
+              type="checkbox"
+              id="issue-type-select-all"
+              class="h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+            />
+            <span class="ml-2 text-sm font-medium text-gray-900">Select All</span>
+          </label>
+        </div>
+        
+        <!-- Issue type options will be populated dynamically -->
+        <div id="issue-type-options"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .issue-type-selector {
+    @apply w-full;
+  }
+  
+  .issue-type-option {
+    @apply px-3 py-2;
+  }
+  
+  .issue-type-option:hover {
+    @apply bg-gray-50;
+  }
+  
+  .issue-type-checkbox {
+    @apply h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500;
+  }
+  
+  .issue-type-label {
+    @apply ml-2 text-sm text-gray-900 cursor-pointer;
+  }
+</style>
+
+<script>
+  // Issue Type Selector Client-side Logic
+  // Following Clean Code: Express intent, single responsibility per function
+  
+  interface IssueType {
+    name: string;
+    selected: boolean;
+  }
+  
+  interface IssueTypesResponse {
+    boardId: string;
+    issueTypes: string[];
+    totalIssues: number;
+    timestamp: string;
+  }
+  
+  let currentBoardId: string | null = null;
+  let availableIssueTypes: IssueType[] = [];
+  let selectedIssueTypes: string[] = [];
+  let isDropdownOpen = false;
+  
+  /**
+   * Initializes the issue type selector
+   * Following Clean Code: Express intent, initialization function
+   */
+  function initializeIssueTypeSelector() {
+    const dropdownButton = document.getElementById('issue-type-dropdown-button');
+    const dropdownMenu = document.getElementById('issue-type-dropdown-menu');
+    const selectAllCheckbox = document.getElementById('issue-type-select-all') as HTMLInputElement;
+    
+    if (!dropdownButton || !dropdownMenu) {
+      console.error('[IssueTypeSelector] Required DOM elements not found');
+      return;
+    }
+    
+    // Toggle dropdown on button click
+    dropdownButton.addEventListener('click', toggleDropdown);
+    
+    // Handle select all checkbox
+    if (selectAllCheckbox) {
+      selectAllCheckbox.addEventListener('change', handleSelectAll);
+    }
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (event) => {
+      if (!dropdownButton.contains(event.target as Node) && !dropdownMenu.contains(event.target as Node)) {
+        closeDropdown();
+      }
+    });
+    
+    console.log('[IssueTypeSelector] Initialized successfully');
+  }
+  
+  /**
+   * Loads issue types for a specific board
+   * Following Clean Code: Express intent, async operation
+   */
+  async function loadIssueTypes(boardId: string) {
+    if (!boardId) {
+      console.warn('[IssueTypeSelector] No board ID provided');
+      return;
+    }
+    
+    currentBoardId = boardId;
+    
+    // Show loading state
+    showLoadingState();
+    
+    try {
+      console.log(`[IssueTypeSelector] Loading issue types for board: ${boardId}`);
+      
+      const response = await fetch(`/api/kanban/${boardId}/issue-types`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data: IssueTypesResponse = await response.json();
+      
+      // Initialize all issue types as selected (per requirement)
+      availableIssueTypes = data.issueTypes.map(name => ({
+        name,
+        selected: true
+      }));
+      
+      selectedIssueTypes = [...data.issueTypes];
+      
+      // Update UI
+      renderIssueTypes();
+      updateSelectedText();
+      hideLoadingState();
+      
+      console.log(`[IssueTypeSelector] Loaded ${availableIssueTypes.length} issue types, all selected by default`);
+      
+    } catch (error) {
+      console.error('[IssueTypeSelector] Error loading issue types:', error);
+      showEmptyState();
+    }
+  }
+  
+  /**
+   * Renders the issue types in the dropdown
+   * Following Clean Code: Single responsibility, DOM manipulation
+   */
+  function renderIssueTypes() {
+    const optionsContainer = document.getElementById('issue-type-options');
+    const selectAllCheckbox = document.getElementById('issue-type-select-all') as HTMLInputElement;
+    
+    if (!optionsContainer) {
+      console.error('[IssueTypeSelector] Options container not found');
+      return;
+    }
+    
+    // Clear existing options
+    optionsContainer.innerHTML = '';
+    
+    // Render each issue type
+    availableIssueTypes.forEach((issueType, index) => {
+      const optionDiv = document.createElement('div');
+      optionDiv.className = 'issue-type-option';
+      
+      optionDiv.innerHTML = `
+        <label class="flex items-center cursor-pointer hover:bg-gray-50 rounded px-2 py-1">
+          <input
+            type="checkbox"
+            id="issue-type-${index}"
+            class="issue-type-checkbox"
+            ${issueType.selected ? 'checked' : ''}
+            data-issue-type="${issueType.name}"
+          />
+          <span class="issue-type-label">${issueType.name}</span>
+        </label>
+      `;
+      
+      // Add event listener for this checkbox
+      const checkbox = optionDiv.querySelector('input[type="checkbox"]') as HTMLInputElement;
+      if (checkbox) {
+        checkbox.addEventListener('change', () => handleIssueTypeToggle(issueType.name));
+      }
+      
+      optionsContainer.appendChild(optionDiv);
+    });
+    
+    // Update select all checkbox state
+    if (selectAllCheckbox) {
+      const allSelected = availableIssueTypes.every(it => it.selected);
+      const noneSelected = availableIssueTypes.every(it => !it.selected);
+      
+      selectAllCheckbox.checked = allSelected;
+      selectAllCheckbox.indeterminate = !allSelected && !noneSelected;
+    }
+  }
+  
+  /**
+   * Handles toggling of individual issue type
+   * Following Clean Code: Express intent, state management
+   */
+  function handleIssueTypeToggle(issueTypeName: string) {
+    const issueType = availableIssueTypes.find(it => it.name === issueTypeName);
+    if (!issueType) return;
+    
+    issueType.selected = !issueType.selected;
+    
+    // Update selected array
+    if (issueType.selected) {
+      if (!selectedIssueTypes.includes(issueTypeName)) {
+        selectedIssueTypes.push(issueTypeName);
+      }
+    } else {
+      selectedIssueTypes = selectedIssueTypes.filter(name => name !== issueTypeName);
+    }
+    
+    // Update UI
+    updateSelectedText();
+    updateSelectAllCheckbox();
+    
+    console.log(`[IssueTypeSelector] Issue type '${issueTypeName}' ${issueType.selected ? 'selected' : 'deselected'}`);
+    console.log(`[IssueTypeSelector] Currently selected: [${selectedIssueTypes.join(', ')}]`);
+  }
+  
+  /**
+   * Handles select all checkbox
+   * Following Clean Code: Express intent, bulk operation
+   */
+  function handleSelectAll() {
+    const selectAllCheckbox = document.getElementById('issue-type-select-all') as HTMLInputElement;
+    if (!selectAllCheckbox) return;
+    
+    const shouldSelectAll = selectAllCheckbox.checked;
+    
+    // Update all issue types
+    availableIssueTypes.forEach(issueType => {
+      issueType.selected = shouldSelectAll;
+    });
+    
+    // Update selected array
+    selectedIssueTypes = shouldSelectAll ? availableIssueTypes.map(it => it.name) : [];
+    
+    // Re-render to update individual checkboxes
+    renderIssueTypes();
+    updateSelectedText();
+    
+    console.log(`[IssueTypeSelector] ${shouldSelectAll ? 'Selected all' : 'Deselected all'} issue types`);
+  }
+  
+  /**
+   * Updates the select all checkbox state
+   * Following Clean Code: Single responsibility, state sync
+   */
+  function updateSelectAllCheckbox() {
+    const selectAllCheckbox = document.getElementById('issue-type-select-all') as HTMLInputElement;
+    if (!selectAllCheckbox) return;
+    
+    const allSelected = availableIssueTypes.every(it => it.selected);
+    const noneSelected = availableIssueTypes.every(it => !it.selected);
+    
+    selectAllCheckbox.checked = allSelected;
+    selectAllCheckbox.indeterminate = !allSelected && !noneSelected;
+  }
+  
+  /**
+   * Updates the selected text display
+   * Following Clean Code: Single responsibility, UI update
+   */
+  function updateSelectedText() {
+    const selectedTextElement = document.getElementById('issue-type-selected-text');
+    if (!selectedTextElement) return;
+    
+    if (selectedIssueTypes.length === 0) {
+      selectedTextElement.textContent = 'No issue types selected';
+      selectedTextElement.className = 'block truncate text-gray-500';
+    } else if (selectedIssueTypes.length === availableIssueTypes.length) {
+      selectedTextElement.textContent = 'All issue types selected';
+      selectedTextElement.className = 'block truncate text-gray-900';
+    } else if (selectedIssueTypes.length === 1) {
+      selectedTextElement.textContent = selectedIssueTypes[0];
+      selectedTextElement.className = 'block truncate text-gray-900';
+    } else {
+      selectedTextElement.textContent = `${selectedIssueTypes.length} issue types selected`;
+      selectedTextElement.className = 'block truncate text-gray-900';
+    }
+  }
+  
+  /**
+   * Toggles dropdown visibility
+   * Following Clean Code: Express intent, UI interaction
+   */
+  function toggleDropdown() {
+    if (isDropdownOpen) {
+      closeDropdown();
+    } else {
+      openDropdown();
+    }
+  }
+  
+  /**
+   * Opens the dropdown menu
+   * Following Clean Code: Express intent, state management
+   */
+  function openDropdown() {
+    const dropdownMenu = document.getElementById('issue-type-dropdown-menu');
+    if (dropdownMenu) {
+      dropdownMenu.classList.remove('hidden');
+      isDropdownOpen = true;
+    }
+  }
+  
+  /**
+   * Closes the dropdown menu
+   * Following Clean Code: Express intent, state management
+   */
+  function closeDropdown() {
+    const dropdownMenu = document.getElementById('issue-type-dropdown-menu');
+    if (dropdownMenu) {
+      dropdownMenu.classList.add('hidden');
+      isDropdownOpen = false;
+    }
+  }
+  
+  /**
+   * Shows loading state
+   * Following Clean Code: Express intent, UI state
+   */
+  function showLoadingState() {
+    const loadingElement = document.getElementById('issue-type-loading');
+    const emptyElement = document.getElementById('issue-type-empty');
+    const listElement = document.getElementById('issue-type-list');
+    
+    if (loadingElement) loadingElement.classList.remove('hidden');
+    if (emptyElement) emptyElement.classList.add('hidden');
+    if (listElement) listElement.classList.add('hidden');
+  }
+  
+  /**
+   * Hides loading state and shows issue types
+   * Following Clean Code: Express intent, UI state
+   */
+  function hideLoadingState() {
+    const loadingElement = document.getElementById('issue-type-loading');
+    const listElement = document.getElementById('issue-type-list');
+    
+    if (loadingElement) loadingElement.classList.add('hidden');
+    if (listElement) listElement.classList.remove('hidden');
+  }
+  
+  /**
+   * Shows empty state when no issue types found
+   * Following Clean Code: Express intent, error state
+   */
+  function showEmptyState() {
+    const loadingElement = document.getElementById('issue-type-loading');
+    const emptyElement = document.getElementById('issue-type-empty');
+    const listElement = document.getElementById('issue-type-list');
+    
+    if (loadingElement) loadingElement.classList.add('hidden');
+    if (emptyElement) emptyElement.classList.remove('hidden');
+    if (listElement) listElement.classList.add('hidden');
+  }
+  
+  /**
+   * Gets currently selected issue types
+   * Following Clean Code: Express intent, data access
+   */
+  function getSelectedIssueTypes(): string[] {
+    return [...selectedIssueTypes];
+  }
+  
+  /**
+   * Resets selection to all issue types selected
+   * Following Clean Code: Express intent, reset function
+   */
+  function resetSelection() {
+    availableIssueTypes.forEach(issueType => {
+      issueType.selected = true;
+    });
+    selectedIssueTypes = availableIssueTypes.map(it => it.name);
+    renderIssueTypes();
+    updateSelectedText();
+    console.log('[IssueTypeSelector] Selection reset to all issue types');
+  }
+  
+  /**
+   * Updates selector state based on board and loading status
+   * Following Clean Code: Express intent, state management
+   */
+  function updateIssueTypeSelectorState(boardId: string | null, loading: boolean = false) {
+    const dropdownButton = document.getElementById('issue-type-dropdown-button') as HTMLButtonElement;
+    
+    const shouldDisable = !boardId || loading;
+    
+    if (dropdownButton) {
+      dropdownButton.disabled = shouldDisable;
+    }
+    
+    // Reset selection when board changes or loading
+    if (boardId !== currentBoardId || loading) {
+      availableIssueTypes = [];
+      selectedIssueTypes = [];
+      updateSelectedText();
+      closeDropdown();
+    }
+    
+    console.log(`[IssueTypeSelector] ${shouldDisable ? 'disabled' : 'enabled'} (boardId: ${boardId}, loading: ${loading})`);
+  }
+  
+  // Initialize on DOM load
+  document.addEventListener('DOMContentLoaded', initializeIssueTypeSelector);
+  
+  // Export functions for parent component access
+  (window as any).issueTypeSelector = {
+    loadIssueTypes,
+    getSelectedIssueTypes,
+    resetSelection,
+    updateIssueTypeSelectorState
+  };
+</script>
