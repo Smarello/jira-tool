@@ -1,0 +1,203 @@
+---
+/**
+ * Enhanced Kanban Progress Loader for Cycle Time Analysis
+ * Following Clean Code: Single responsibility, clear state management
+ * Adapted from VelocityProgressLoader for Kanban-specific loading
+ */
+
+export interface Props {
+  /** Board ID being loaded */
+  boardId: string;
+  /** Current loading stage */
+  stage: 'issues' | 'analysis' | 'complete' | 'error';
+  /** Progress percentage (0-100) */
+  progress: number;
+  /** Current stage message */
+  message: string;
+  /** Number of issues processed so far */
+  issuesProcessed?: number;
+  /** Total issues to process */
+  totalIssues?: number;
+  /** Enable cancel functionality */
+  allowCancel?: boolean;
+  /** Cancel callback */
+  onCancel?: () => void;
+}
+
+const { 
+  boardId,
+  stage = 'issues',
+  progress = 0,
+  message = 'Loading cycle time data...',
+  issuesProcessed = 0,
+  totalIssues = 0,
+  allowCancel = false,
+  onCancel
+} = Astro.props;
+
+// Stage configurations for visual representation
+const stageConfig = {
+  issues: {
+    color: 'bg-purple-500',
+    icon: '📋',
+    name: 'Loading Issues',
+    description: 'Fetching board issues and changelog data'
+  },
+  analysis: {
+    color: 'bg-indigo-500',
+    icon: '⏱️',
+    name: 'Cycle Time Analysis',
+    description: 'Calculating cycle time percentiles'
+  },
+  complete: {
+    color: 'bg-green-500',
+    icon: '✅',
+    name: 'Complete',
+    description: 'Cycle time analysis completed successfully'
+  },
+  error: {
+    color: 'bg-red-500',
+    icon: '❌',
+    name: 'Error',
+    description: 'Failed to load cycle time data'
+  }
+};
+
+const currentStage = stageConfig[stage];
+const progressClamped = Math.max(0, Math.min(100, progress));
+---
+
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-md mx-auto">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center space-x-2">
+      <span class="text-2xl">{currentStage.icon}</span>
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900">{currentStage.name}</h3>
+        <p class="text-sm text-gray-600">Board {boardId}</p>
+      </div>
+    </div>
+    
+    {allowCancel && onCancel && (
+      <button
+        type="button"
+        class="text-gray-400 hover:text-gray-600 transition-colors p-1"
+        onclick={`if(window.kanbanLoader) window.kanbanLoader.cancel()`}
+        title="Cancel loading"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    )}
+  </div>
+
+  <!-- Progress Bar -->
+  <div class="mb-4">
+    <div class="flex justify-between text-sm text-gray-600 mb-2">
+      <span>Progress</span>
+      <span>{progressClamped}%</span>
+    </div>
+    <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+      <div 
+        class={`h-full ${currentStage.color} transition-all duration-500 ease-out`}
+        style={`width: ${progressClamped}%`}
+      >
+      </div>
+    </div>
+  </div>
+
+  <!-- Stage Description -->
+  <p class="text-sm text-gray-600 mb-3">
+    {currentStage.description}
+  </p>
+
+  <!-- Current Message -->
+  <div class="bg-gray-50 rounded-md p-3 mb-4">
+    <p class="text-sm font-medium text-gray-700">{message}</p>
+  </div>
+
+  <!-- Issue Counter (if available) -->
+  {totalIssues > 0 && (
+    <div class="flex justify-between text-xs text-gray-500">
+      <span>Issues processed: {issuesProcessed}</span>
+      <span>Total issues: {totalIssues}</span>
+    </div>
+  )}
+
+  <!-- Stage Indicators -->
+  <div class="mt-4 flex items-center justify-center space-x-2">
+    <div class={`w-3 h-3 rounded-full transition-colors ${
+      ['issues', 'analysis', 'complete'].includes(stage) ? 'bg-purple-500' : 'bg-gray-300'
+    }`} title="Loading Issues"></div>
+    <div class={`w-3 h-3 rounded-full transition-colors ${
+      ['analysis', 'complete'].includes(stage) ? 'bg-indigo-500' : 'bg-gray-300'
+    }`} title="Cycle Time Analysis"></div>
+    <div class={`w-3 h-3 rounded-full transition-colors ${
+      stage === 'complete' ? 'bg-green-500' : 'bg-gray-300'
+    }`} title="Complete"></div>
+  </div>
+
+  <!-- Error State -->
+  {stage === 'error' && (
+    <div class="mt-4 pt-4 border-t border-gray-200">
+      <div class="flex items-center space-x-2">
+        <button
+          type="button"
+          class="flex-1 bg-purple-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors"
+          onclick="if(window.kanbanAnalytics) window.kanbanAnalytics.loadKanbanAnalytics(boardId)"
+        >
+          Retry
+        </button>
+        <button
+          type="button"
+          class="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+          onclick="history.back()"
+        >
+          Go Back
+        </button>
+      </div>
+    </div>
+  )}
+</div>
+
+<!-- Loading Animation Styles -->
+<style>
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 5px rgba(147, 51, 234, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 15px rgba(147, 51, 234, 0.6);
+    }
+  }
+
+  @keyframes pulse-indigo {
+    0%, 100% {
+      box-shadow: 0 0 5px rgba(99, 102, 241, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.6);
+    }
+  }
+
+  .bg-purple-500 {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  .bg-indigo-500 {
+    animation: pulse-indigo 2s ease-in-out infinite;
+  }
+
+  .bg-green-500,
+  .bg-red-500 {
+    animation: none;
+  }
+
+  /* Smooth progress bar animation */
+  .h-full {
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+</style>
+
+<!-- Note: Progress updates will be handled by parent components through re-rendering -->

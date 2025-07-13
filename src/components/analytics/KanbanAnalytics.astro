@@ -2,8 +2,10 @@
 /**
  * Kanban Analytics Component
  * Following Clean Code: Single responsibility - Kanban-specific cycle time analytics
- * Placeholder component for future Kanban analytics implementation
+ * Loads cycle time data dynamically with progress loading
  */
+
+import KanbanProgressLoader from '../ui/KanbanProgressLoader.astro';
 
 export interface Props {
   boardId: string | null;
@@ -20,43 +22,77 @@ const { boardId, loading = false } = Astro.props;
       <!-- Main Cycle Time Chart -->
       <div class="xl:col-span-2">
         <div id="cycle-time-chart-container">
-          {loading ? (
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 class="text-lg font-semibold text-gray-900 mb-4">
-                Cycle Time Analysis
-              </h3>
-              <div class="animate-pulse">
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+              Cycle Time Analysis
+            </h3>
+            
+            {loading && (
+              <div id="initial-loading" class="animate-pulse">
                 <div class="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
                 <div class="h-32 bg-gray-200 rounded mb-4"></div>
                 <div class="h-4 bg-gray-200 rounded w-1/2"></div>
               </div>
-            </div>
-          ) : (
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 class="text-lg font-semibold text-gray-900 mb-4">
-                Cycle Time Analysis
-              </h3>
-              <div class="text-center py-12">
-                <div class="text-6xl mb-4">⏱️</div>
-                <h4 class="text-xl font-medium text-gray-900 mb-2">
-                  Kanban Analytics Coming Soon
-                </h4>
-                <p class="text-gray-600 mb-6">
-                  Cycle time percentiles, throughput metrics, and flow efficiency analysis will be available here.
-                </p>
-                <div class="bg-blue-50 p-4 rounded-lg text-left">
-                  <h5 class="font-medium text-blue-900 mb-2">Planned Features:</h5>
-                  <ul class="text-sm text-blue-800 space-y-1">
-                    <li>• Cycle time percentiles (50th, 75th, 85th, 95th)</li>
-                    <li>• Issue type filtering (Bug, Story, Task)</li>
-                    <li>• Swimlane filtering with custom JQL</li>
-                    <li>• Throughput and flow efficiency metrics</li>
-                    <li>• Lead time vs cycle time analysis</li>
-                  </ul>
+            )}
+            
+            <div id="cycle-time-data" class="hidden">
+              <!-- Cycle Time Percentiles -->
+              <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="text-center p-4 bg-blue-50 rounded-lg">
+                  <div class="text-2xl font-bold text-blue-600" id="p50-value">-</div>
+                  <div class="text-sm text-blue-800">P50 (Median)</div>
+                  <div class="text-xs text-gray-600">hours</div>
+                </div>
+                <div class="text-center p-4 bg-indigo-50 rounded-lg">
+                  <div class="text-2xl font-bold text-indigo-600" id="p75-value">-</div>
+                  <div class="text-sm text-indigo-800">P75</div>
+                  <div class="text-xs text-gray-600">hours</div>
+                </div>
+                <div class="text-center p-4 bg-purple-50 rounded-lg">
+                  <div class="text-2xl font-bold text-purple-600" id="p85-value">-</div>
+                  <div class="text-sm text-purple-800">P85</div>
+                  <div class="text-xs text-gray-600">hours</div>
+                </div>
+                <div class="text-center p-4 bg-red-50 rounded-lg">
+                  <div class="text-2xl font-bold text-red-600" id="p95-value">-</div>
+                  <div class="text-sm text-red-800">P95</div>
+                  <div class="text-xs text-gray-600">hours</div>
+                </div>
+              </div>
+              
+              <!-- Summary Stats -->
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span class="text-gray-600">Total Issues:</span>
+                    <span class="font-medium ml-2" id="total-issues">-</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-600">Completed Issues:</span>
+                    <span class="font-medium ml-2" id="completed-issues">-</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-600">Sample Size:</span>
+                    <span class="font-medium ml-2" id="sample-size">-</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-600">Last Updated:</span>
+                    <span class="font-medium ml-2" id="last-updated">-</span>
+                  </div>
                 </div>
               </div>
             </div>
-          )}
+            
+            <div id="cycle-time-placeholder" class={!loading ? "text-center py-12" : "hidden"}>
+              <div class="text-6xl mb-4">⏱️</div>
+              <h4 class="text-xl font-medium text-gray-900 mb-2">
+                Select a Board
+              </h4>
+              <p class="text-gray-600 mb-6">
+                Choose a Kanban board to view cycle time percentiles and flow metrics.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -144,6 +180,19 @@ const { boardId, loading = false } = Astro.props;
       </div>
     </div>
   </div>
+  
+  <!-- Loading overlay for dynamic updates -->
+  <div id="kanban-loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div id="kanban-progress-loader-container">
+      <KanbanProgressLoader 
+        boardId={boardId || 'unknown'}
+        stage="issues"
+        progress={0}
+        message="Initializing cycle time analysis..."
+        allowCancel={true}
+      />
+    </div>
+  </div>
 </div>
 
 <style>
@@ -168,28 +217,238 @@ const { boardId, loading = false } = Astro.props;
   // Kanban Analytics Client-side Logic
   // Following Clean Code: Express intent, single responsibility per function
   
+  interface KanbanAnalyticsData {
+    boardId: string;
+    totalIssues: number;
+    completedIssues: number;
+    cycleTimePercentiles: {
+      p50: number;
+      p75: number;
+      p85: number;
+      p95: number;
+      sampleSize: number;
+    };
+    calculatedAt: string;
+  }
+  
   let currentBoardId: string | null = null;
+  let isLoading = false;
+  let cancelController: AbortController | null = null;
+  
+  /**
+   * Shows loading overlay with progress tracking
+   * Following Clean Code: Clear function name, single responsibility
+   */
+  function showLoadingOverlay() {
+    const overlay = document.getElementById('kanban-loading-overlay');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+    }
+  }
+  
+  /**
+   * Hides loading overlay
+   * Following Clean Code: Clear function name, single responsibility
+   */
+  function hideLoadingOverlay() {
+    const overlay = document.getElementById('kanban-loading-overlay');
+    if (overlay) {
+      overlay.classList.add('hidden');
+    }
+  }
+  
+  /**
+   * Updates progress loader with current stage and progress
+   * Following Clean Code: Express intent, clear parameters
+   */
+  function updateProgressLoader(stage: string, progress: number, message: string, issuesProcessed?: number, totalIssues?: number) {
+    // Progress updates will be handled by the overlay component
+    // This is a placeholder for future progress tracking enhancements
+  }
+  
+  /**
+   * Displays cycle time data in the UI
+   * Following Clean Code: Single responsibility, clear data flow
+   */
+  function displayCycleTimeData(data: KanbanAnalyticsData) {
+    console.log('[KanbanAnalytics] Displaying cycle time data for board:', data.boardId);
+    
+    // Find the cycle time chart container within the kanban view
+    const kanbanView = document.getElementById('kanban-analytics-view');
+    if (!kanbanView) {
+      console.error('[KanbanAnalytics] Kanban analytics view not found');
+      return;
+    }
+    
+    const chartContainer = kanbanView.querySelector('#cycle-time-chart-container');
+    if (!chartContainer) {
+      console.error('[KanbanAnalytics] Cycle time chart container not found');
+      return;
+    }
+    
+    // Hide loading, placeholder and show data within the chart container
+    const initialLoading = chartContainer.querySelector('#initial-loading');
+    const placeholder = chartContainer.querySelector('#cycle-time-placeholder');
+    const dataContainer = chartContainer.querySelector('#cycle-time-data');
+    
+    if (initialLoading) initialLoading.classList.add('hidden');
+    if (placeholder) placeholder.classList.add('hidden');
+    if (dataContainer) dataContainer.classList.remove('hidden');
+    
+    // Update percentile values within the chart container
+    const updateElement = (id: string, value: number) => {
+      const element = chartContainer.querySelector(`#${id}`);
+      if (element) {
+        element.textContent = value.toFixed(1);
+      }
+    };
+    
+    updateElement('p50-value', data.cycleTimePercentiles.p50);
+    updateElement('p75-value', data.cycleTimePercentiles.p75);
+    updateElement('p85-value', data.cycleTimePercentiles.p85);
+    updateElement('p95-value', data.cycleTimePercentiles.p95);
+    
+    // Update summary stats within the chart container
+    const updateTextElement = (id: string, value: string | number) => {
+      const element = chartContainer.querySelector(`#${id}`);
+      if (element) {
+        element.textContent = value.toString();
+      }
+    };
+    
+    updateTextElement('total-issues', data.totalIssues);
+    updateTextElement('completed-issues', data.completedIssues);
+    updateTextElement('sample-size', data.cycleTimePercentiles.sampleSize);
+    updateTextElement('last-updated', new Date(data.calculatedAt).toLocaleString());
+    
+    console.log('[KanbanAnalytics] Cycle time data displayed successfully');
+  }
+  
+  /**
+   * Shows error state
+   * Following Clean Code: Express intent, consistent error handling
+   */
+  function showErrorState(error: string) {
+    console.error('[KanbanAnalytics] Error loading analytics:', error);
+    
+    // Find elements within the chart container
+    const kanbanView = document.getElementById('kanban-analytics-view');
+    if (!kanbanView) {
+      console.error('[KanbanAnalytics] Kanban analytics view not found');
+      return;
+    }
+    
+    const chartContainer = kanbanView.querySelector('#cycle-time-chart-container');
+    if (!chartContainer) {
+      console.error('[KanbanAnalytics] Cycle time chart container not found');
+      return;
+    }
+    
+    const initialLoading = chartContainer.querySelector('#initial-loading');
+    const placeholder = chartContainer.querySelector('#cycle-time-placeholder');
+    const dataContainer = chartContainer.querySelector('#cycle-time-data');
+    
+    if (initialLoading) initialLoading.classList.add('hidden');
+    if (dataContainer) dataContainer.classList.add('hidden');
+    if (placeholder) {
+      placeholder.classList.remove('hidden');
+      placeholder.innerHTML = `
+        <div class="text-center py-12">
+          <div class="text-6xl mb-4">❌</div>
+          <h4 class="text-xl font-medium text-gray-900 mb-2">
+            Error Loading Analytics
+          </h4>
+          <p class="text-gray-600 mb-6">
+            ${error}
+          </p>
+          <button 
+            onclick="window.kanbanAnalytics.loadKanbanAnalytics('${currentBoardId}')"
+            class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      `;
+    }
+  }
   
   /**
    * Loads Kanban analytics data for a specific board
-   * Following Clean Code: Express intent, placeholder implementation
+   * Following Clean Code: Express intent, async/await pattern
    */
   async function loadKanbanAnalytics(boardId: string) {
-    if (!boardId || boardId === currentBoardId) return;
+    if (!boardId || boardId === currentBoardId && isLoading) return;
+    
+    // Cancel any existing request
+    if (cancelController) {
+      cancelController.abort();
+    }
     
     currentBoardId = boardId;
-    console.log('Loading Kanban analytics for board:', boardId);
+    isLoading = true;
+    cancelController = new AbortController();
     
-    // TODO: Implement actual Kanban analytics loading
-    // This will include:
-    // - Cycle time calculation
-    // - Throughput metrics
-    // - Flow efficiency analysis
-    // - Issue filtering by type and swimlane
+    console.log(`[KanbanAnalytics] Loading analytics for board: ${boardId}`);
+    
+    try {
+      showLoadingOverlay();
+      updateProgressLoader('issues', 10, 'Fetching board issues...');
+      
+      const response = await fetch(`/api/kanban/${boardId}/analytics`, {
+        signal: cancelController.signal
+      });
+      
+      updateProgressLoader('analysis', 50, 'Calculating cycle time percentiles...');
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data: KanbanAnalyticsData = await response.json();
+      
+      updateProgressLoader('complete', 100, 'Analysis complete!');
+      
+      // Small delay to show completion state
+      setTimeout(() => {
+        hideLoadingOverlay();
+        displayCycleTimeData(data);
+      }, 500);
+      
+    } catch (error) {
+      hideLoadingOverlay();
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[KanbanAnalytics] Request cancelled');
+        return;
+      }
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      showErrorState(errorMessage);
+    } finally {
+      isLoading = false;
+      cancelController = null;
+    }
+  }
+  
+  /**
+   * Cancels current loading operation
+   * Following Clean Code: Express intent, clean cancellation
+   */
+  function cancelLoading() {
+    if (cancelController) {
+      cancelController.abort();
+      hideLoadingOverlay();
+    }
   }
   
   // Export functions for parent component access
   (window as any).kanbanAnalytics = {
-    loadKanbanAnalytics
+    loadKanbanAnalytics,
+    cancelLoading
+  };
+  
+  // Export for global access (used by progress loader retry button)
+  (window as any).kanbanLoader = {
+    cancel: cancelLoading
   };
 </script>
