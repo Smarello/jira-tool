@@ -6,6 +6,12 @@
 
 import type { JiraSprint } from '../../jira/boards';
 import type { JiraIssueWithPoints } from '../../jira/issues-api';
+import type { 
+  KanbanIssueEntity, 
+  NewKanbanIssueEntity, 
+  KanbanBoardConfigEntity, 
+  NewKanbanBoardConfigEntity 
+} from '../schemas/kanban';
 
 /**
  * Sprint velocity data for persistence
@@ -310,3 +316,135 @@ export interface IBoardMetricsRepository {
    */
   getAllBoardMetrics(): Promise<BoardMetrics[]>;
 }
+
+/**
+ * Repository interface for Kanban Issue persistence
+ * Following Clean Architecture: Dependency Inversion Principle
+ * Following Clean Code: Interface Segregation - focused on Kanban issues only
+ */
+export interface KanbanIssueRepository {
+  /**
+   * Saves a single Kanban issue
+   * Following Clean Code: Single responsibility
+   */
+  saveIssue(issue: NewKanbanIssueEntity): Promise<KanbanIssueEntity>;
+
+  /**
+   * Saves multiple Kanban issues in batch
+   * Following Clean Code: Performance optimization for large datasets
+   */
+  saveIssuesBatch(issues: readonly NewKanbanIssueEntity[]): Promise<readonly KanbanIssueEntity[]>;
+
+  /**
+   * Gets Kanban issue by ID
+   * Following Clean Code: Command-Query Separation (query)
+   */
+  getIssueById(issueId: string): Promise<KanbanIssueEntity | null>;
+
+  /**
+   * Gets Kanban issue by key
+   * Following Clean Code: Express intent, common query pattern
+   */
+  getIssueByKey(issueKey: string): Promise<KanbanIssueEntity | null>;
+
+  /**
+   * Gets all issues for a specific board
+   * Following Clean Code: Express intent, board-specific queries
+   */
+  getIssuesByBoardId(boardId: string): Promise<readonly KanbanIssueEntity[]>;
+
+  /**
+   * Gets completed issues for cycle time analysis
+   * Following Clean Code: Express intent, filtering for metrics calculation
+   */
+  getCompletedIssues(boardId: string, excludeReopened?: boolean): Promise<readonly KanbanIssueEntity[]>;
+
+  /**
+   * Gets issues filtered by type and date range
+   * Following Clean Code: Express intent, advanced filtering for analytics
+   */
+  getIssuesFiltered(
+    boardId: string, 
+    options?: {
+      issueTypes?: readonly string[];
+      startDate?: string;
+      endDate?: string;
+      excludeReopened?: boolean;
+    }
+  ): Promise<readonly KanbanIssueEntity[]>;
+
+  /**
+   * Updates issue cycle time data
+   * Following Clean Code: Single responsibility, specific update operation
+   */
+  updateIssueCycleTime(
+    issueId: string, 
+    cycleTimeData: {
+      boardEntryDate?: string | null;
+      lastDoneDate?: string | null;
+      cycleTimeDays?: number | null;
+      isReopened?: boolean;
+      excludeFromMetrics?: boolean;
+    }
+  ): Promise<KanbanIssueEntity | null>;
+
+  /**
+   * Deletes issue by ID
+   * Following Clean Code: Single responsibility
+   */
+  deleteIssue(issueId: string): Promise<void>;
+
+  /**
+   * Deletes all issues for a board
+   * Following Clean Code: Bulk operation for cleanup
+   */
+  deleteIssuesByBoardId(boardId: string): Promise<void>;
+}
+
+/**
+ * Repository interface for Kanban Board Configuration persistence
+ * Following Clean Architecture: Dependency Inversion Principle
+ * Following Clean Code: Single responsibility - board configuration only
+ */
+export interface KanbanBoardConfigRepository {
+  /**
+   * Saves board configuration
+   * Following Clean Code: Single responsibility
+   */
+  saveBoardConfig(config: NewKanbanBoardConfigEntity): Promise<KanbanBoardConfigEntity>;
+
+  /**
+   * Gets board configuration by board ID
+   * Following Clean Code: Command-Query Separation (query)
+   */
+  getBoardConfig(boardId: string): Promise<KanbanBoardConfigEntity | null>;
+
+  /**
+   * Updates board configuration
+   * Following Clean Code: Express intent, configuration updates
+   */
+  updateBoardConfig(
+    boardId: string,
+    updates: Partial<Omit<NewKanbanBoardConfigEntity, 'boardId'>>
+  ): Promise<KanbanBoardConfigEntity | null>;
+
+  /**
+   * Gets all board configurations
+   * Following Clean Code: Express intent, list all configurations
+   */
+  getAllBoardConfigs(): Promise<readonly KanbanBoardConfigEntity[]>;
+
+  /**
+   * Gets board configurations by project key
+   * Following Clean Code: Express intent, project-specific queries
+   */
+  getBoardConfigsByProject(projectKey: string): Promise<readonly KanbanBoardConfigEntity[]>;
+
+  /**
+   * Deletes board configuration
+   * Following Clean Code: Single responsibility
+   */
+  deleteBoardConfig(boardId: string): Promise<void>;
+}
+
+
