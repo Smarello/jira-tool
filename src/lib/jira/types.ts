@@ -353,7 +353,41 @@ export interface KanbanAnalyticsResult {
   readonly totalIssues: number;
   readonly completedIssues: number;
   readonly cycleTimePercentiles: CycleTimePercentiles;
+  readonly cycleTimeProbability?: CycleTimeProbabilityDistribution;
   readonly calculatedAt: string; // ISO timestamp
+}
+
+/**
+ * Cycle Time Probability Distribution - statistical breakdown by day ranges
+ * Following Clean Code: Value object, expressing domain concept
+ */
+export interface CycleTimeProbabilityDistribution {
+  readonly dayRanges: readonly CycleTimeProbabilityRange[];
+  readonly recommendations: CycleTimeRecommendations;
+}
+
+/**
+ * Cycle Time Probability Range - single day range with statistics
+ * Following Clean Code: Value object, immutable
+ */
+export interface CycleTimeProbabilityRange {
+  readonly range: string;           // "0-1", "1-2", etc.
+  readonly probability: number;     // Percentage for this range (0-100)
+  readonly confidence: number;      // Cumulative percentage (0-100)
+  readonly isRecommended: boolean;  // Sweet spot ranges for planning
+  readonly count: number;          // Number of issues in this range
+  readonly minDays: number;        // Lower bound of range
+  readonly maxDays: number;        // Upper bound of range
+}
+
+/**
+ * Cycle Time Recommendations - actionable insights for planning
+ * Following Clean Code: Value object, expressing business intent
+ */
+export interface CycleTimeRecommendations {
+  readonly minDays: number;        // Recommended minimum days for planning
+  readonly maxDays: number;        // Recommended maximum days for planning
+  readonly confidenceLevel: number; // Confidence level for recommendation (0-100)
 }
 
 /**

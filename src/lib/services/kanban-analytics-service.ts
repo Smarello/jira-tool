@@ -1,10 +1,10 @@
 /**
  * Kanban Analytics Service
- * Calculates cycle time percentiles for Kanban boards
+ * Calculates cycle time percentiles and probability distributions for Kanban boards
  * Following Clean Code: Single responsibility, dependency injection
  */
 
-import type { KanbanAnalyticsResult, CycleTimePercentiles } from '../jira/types';
+import type { KanbanAnalyticsResult, CycleTimePercentiles, CycleTimeProbabilityDistribution } from '../jira/types';
 import type { McpAtlassianClient } from '../mcp/atlassian';
 import { 
   calculateIssuesCycleTime, 
@@ -68,6 +68,7 @@ export async function calculateKanbanAnalytics(
       totalIssues: allIssues.length,
       completedIssues: completedResults.length,
       cycleTimePercentiles: percentiles,
+      cycleTimeProbability: calculateProbabilityDistribution(cycleTimes),
       calculatedAt
     };
 
@@ -110,5 +111,123 @@ function createEmptyPercentiles(): CycleTimePercentiles {
     p85: 0,
     p95: 0,
     sampleSize: 0
+  };
+}
+
+/**
+ * Calculates probability distribution for cycle times
+ * Following Clean Code: Pure function, single responsibility
+ */
+function calculateProbabilityDistribution(cycleTimes: readonly number[]): CycleTimeProbabilityDistribution | undefined {
+  if (cycleTimes.length === 0) {
+    return undefined;
+  }
+
+  // Convert hours to days and sort
+  const cycleTimeDays = cycleTimes.map(hours => hours / 24).sort((a, b) => a - b);
+  
+  // Determine dynamic day ranges based on data distribution
+  const maxDays = Math.ceil(Math.max(...cycleTimeDays));
+  const dayRanges = generateDayRanges(maxDays);
+  
+  // Calculate distribution for each range
+  const rangeData = dayRanges.map((range, index) => {
+    const issuesInRange = cycleTimeDays.filter(days => 
+      days >= range.min && days < range.max
+    ).length;
+    
+    const probability = Math.round((issuesInRange / cycleTimes.length) * 100);
+    
+    return {
+      range: `${range.min}-${range.max}`,
+      probability,
+      count: issuesInRange,
+      minDays: range.min,
+      maxDays: range.max,
+      confidence: 0, // Will be calculated in next step
+      isRecommended: false // Will be determined based on probability
+    };
+  });
+  
+  // Calculate cumulative confidence levels
+  let cumulativeCount = 0;
+  rangeData.forEach(range => {
+    cumulativeCount += range.count;
+    range.confidence = Math.round((cumulativeCount / cycleTimes.length) * 100);
+  });
+  
+  // Identify recommended ranges (sweet spots)
+  // Ranges with highest probability and reasonable confidence (35-85%)
+  const sortedByProbability = [...rangeData].sort((a, b) => b.probability - a.probability);
+  const topRanges = sortedByProbability.slice(0, 2); // Top 2 most probable ranges
+  
+  rangeData.forEach(range => {
+    range.isRecommended = topRanges.includes(range) && 
+                         range.confidence >= 35 && 
+                         range.confidence <= 85 &&
+                         range.probability >= 5; // At least 5% probability
+  });
+  
+  // Generate recommendations
+  const recommendations = generateRecommendations(rangeData, cycleTimeDays);
+  
+  return {
+    dayRanges: rangeData,
+    recommendations
+  };
+}
+
+/**
+ * Generates dynamic day ranges based on data distribution
+ * Following Clean Code: Pure function, clear algorithm
+ */
+function generateDayRanges(maxDays: number): Array<{ min: number; max: number }> {
+  const ranges: Array<{ min: number; max: number }> = [];
+  
+  // Start with single day ranges for first few days
+  for (let i = 0; i < Math.min(maxDays, 10); i+=4) {
+    ranges.push({ min: i, max: i + 4 });
+  }
+  
+  // Add broader ranges for higher values if needed
+  if (maxDays > 10) {
+    let current = 10;
+    while (current < maxDays) {
+      const rangeSize = current < 20 ? 2 : 5; // 2-day ranges up to 20, then 5-day ranges
+      ranges.push({ min: current, max: Math.min(current + rangeSize, maxDays + 1) });
+      current += rangeSize;
+    }
+  }
+  console.error(ranges);
+  return ranges;
+}
+
+/**
+ * Generates actionable recommendations based on probability distribution
+ * Following Clean Code: Business logic extraction, clear intent
+ */
+function generateRecommendations(
+  ranges: Array<{ range: string; confidence: number; isRecommended: boolean; minDays: number; maxDays: number }>,
+  cycleTimeDays: number[]
+): { minDays: number; maxDays: number; confidenceLevel: number } {
+  // Find the range that gives us around 70-80% confidence
+  const targetConfidenceRange = ranges.find(r => r.confidence >= 70 && r.confidence <= 85);
+  
+  if (targetConfidenceRange) {
+    return {
+      minDays: targetConfidenceRange.minDays,
+      maxDays: targetConfidenceRange.maxDays,
+      confidenceLevel: targetConfidenceRange.confidence
+    };
+  }
+  
+  // Fallback: use percentiles approach
+  const p75Index = Math.floor(cycleTimeDays.length * 0.75);
+  const p75Days = cycleTimeDays[p75Index] || 1;
+  
+  return {
+    minDays: Math.floor(p75Days * 0.5), // Conservative minimum
+    maxDays: Math.ceil(p75Days),
+    confidenceLevel: 75
   };
 }

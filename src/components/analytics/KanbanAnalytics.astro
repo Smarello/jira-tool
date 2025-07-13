@@ -38,25 +38,29 @@ const { boardId, loading = false } = Astro.props;
             <div id="cycle-time-data" class="hidden">
               <!-- Cycle Time Percentiles -->
               <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <div class="text-center p-4 bg-blue-50 rounded-lg">
+                <div class="text-center p-4 bg-blue-50 rounded-lg cursor-help" 
+                     title="50% of issues are completed within this time">
                   <div class="text-2xl font-bold text-blue-600" id="p50-value">-</div>
-                  <div class="text-sm text-blue-800">P50 (Median)</div>
-                  <div class="text-xs text-gray-600">hours</div>
+                  <div class="text-sm text-blue-800">50th percentile</div>
+                  <div class="text-xs text-gray-600">days</div>
                 </div>
-                <div class="text-center p-4 bg-indigo-50 rounded-lg">
+                <div class="text-center p-4 bg-indigo-50 rounded-lg cursor-help" 
+                     title="75% of issues are completed within this time">
                   <div class="text-2xl font-bold text-indigo-600" id="p75-value">-</div>
-                  <div class="text-sm text-indigo-800">P75</div>
-                  <div class="text-xs text-gray-600">hours</div>
+                  <div class="text-sm text-indigo-800">75th percentile</div>
+                  <div class="text-xs text-gray-600">days</div>
                 </div>
-                <div class="text-center p-4 bg-purple-50 rounded-lg">
+                <div class="text-center p-4 bg-purple-50 rounded-lg cursor-help" 
+                     title="85% of issues are completed within this time">
                   <div class="text-2xl font-bold text-purple-600" id="p85-value">-</div>
-                  <div class="text-sm text-purple-800">P85</div>
-                  <div class="text-xs text-gray-600">hours</div>
+                  <div class="text-sm text-purple-800">85th percentile</div>
+                  <div class="text-xs text-gray-600">days</div>
                 </div>
-                <div class="text-center p-4 bg-red-50 rounded-lg">
+                <div class="text-center p-4 bg-red-50 rounded-lg cursor-help" 
+                     title="95% of issues are completed within this time">
                   <div class="text-2xl font-bold text-red-600" id="p95-value">-</div>
-                  <div class="text-sm text-red-800">P95</div>
-                  <div class="text-xs text-gray-600">hours</div>
+                  <div class="text-sm text-red-800">95th percentile</div>
+                  <div class="text-xs text-gray-600">days</div>
                 </div>
               </div>
               
@@ -78,6 +82,44 @@ const { boardId, loading = false } = Astro.props;
                   <div>
                     <span class="text-gray-600">Last Updated:</span>
                     <span class="font-medium ml-2" id="last-updated">-</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Cycle Time Probability Table -->
+              <div id="cycle-time-probability" class="mt-6">
+                <h4 class="text-md font-medium text-gray-900 mb-3">Cycle Time Probability Distribution</h4>
+                <div class="overflow-x-auto">
+                  <table class="w-full border-collapse bg-white probability-table">
+                    <thead>
+                      <tr class="bg-gray-50">
+                        <th class="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">
+                          Days
+                        </th>
+                        <th class="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">
+                          Probability that a story is going to take this long
+                        </th>
+                        <th class="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">
+                          Confidence that a story will take this long or less
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody id="probability-table-body">
+                      <!-- Table rows will be populated dynamically -->
+                    </tbody>
+                  </table>
+                </div>
+                
+                <!-- Recommendations -->
+                <div id="probability-recommendations" class="mt-4 p-4 bg-blue-50 rounded-lg">
+                  <div class="flex items-start">
+                    <div class="text-blue-500 mr-3 mt-1">💡</div>
+                    <div>
+                      <h5 class="font-medium text-blue-900 mb-1">Recommendation</h5>
+                      <p class="text-sm text-blue-800" id="recommendation-text">
+                        Loading recommendations...
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -211,6 +253,36 @@ const { boardId, loading = false } = Astro.props;
   .insight-card:hover {
     @apply transform scale-105;
   }
+  
+  .probability-table {
+    @apply border-collapse w-full;
+  }
+  
+  .probability-row {
+    @apply transition-colors duration-200;
+  }
+  
+  .probability-row:hover {
+    @apply bg-gray-50;
+  }
+  
+  .recommended-range {
+    @apply border-2 border-dashed border-orange-400;
+    background-color: rgba(251, 191, 36, 0.1);
+  }
+  
+  .recommended-range td {
+    @apply font-medium;
+  }
+  
+  .confidence-cell {
+    @apply transition-all duration-300;
+  }
+  
+  /* Gradient colors for confidence levels */
+  .confidence-low { @apply bg-red-50 text-red-800; }
+  .confidence-medium { @apply bg-yellow-50 text-yellow-800; }
+  .confidence-high { @apply bg-green-50 text-green-800; }
 </style>
 
 <script>
@@ -227,6 +299,20 @@ const { boardId, loading = false } = Astro.props;
       p85: number;
       p95: number;
       sampleSize: number;
+    };
+    cycleTimeProbability?: {
+      dayRanges: Array<{
+        range: string;           // "0-1", "1-2", etc.
+        probability: number;     // Percentage for this range
+        confidence: number;      // Cumulative percentage (confidence level)
+        isRecommended: boolean;  // Sweet spot ranges
+        count: number;          // Number of issues in this range
+      }>;
+      recommendations: {
+        minDays: number;
+        maxDays: number;
+        confidenceLevel: number;
+      };
     };
     calculatedAt: string;
   }
@@ -299,7 +385,9 @@ const { boardId, loading = false } = Astro.props;
     const updateElement = (id: string, value: number) => {
       const element = chartContainer.querySelector(`#${id}`);
       if (element) {
-        element.textContent = value.toFixed(1);
+        // Convert hours to days (24 hours per day)
+        const days = value / 24;
+        element.textContent = days.toFixed(1);
       }
     };
     
@@ -321,7 +409,72 @@ const { boardId, loading = false } = Astro.props;
     updateTextElement('sample-size', data.cycleTimePercentiles.sampleSize);
     updateTextElement('last-updated', new Date(data.calculatedAt).toLocaleString());
     
+    // Display probability table if available
+    if (data.cycleTimeProbability) {
+      displayProbabilityTable(data.cycleTimeProbability, chartContainer);
+    }
+    
     console.log('[KanbanAnalytics] Cycle time data displayed successfully');
+  }
+  
+  /**
+   * Displays the cycle time probability table
+   * Following Clean Code: Single responsibility, clear data flow
+   */
+  function displayProbabilityTable(
+    probabilityData: KanbanAnalyticsData['cycleTimeProbability'], 
+    chartContainer: Element
+  ) {
+    if (!probabilityData) return;
+    
+    console.log('[KanbanAnalytics] Displaying probability table');
+    
+    const tableBody = chartContainer.querySelector('#probability-table-body');
+    if (!tableBody) {
+      console.error('[KanbanAnalytics] Probability table body not found');
+      return;
+    }
+    
+    // Clear existing rows
+    tableBody.innerHTML = '';
+    
+    // Generate table rows
+    probabilityData.dayRanges.forEach((range) => {
+      const row = document.createElement('tr');
+      row.className = `probability-row ${range.isRecommended ? 'recommended-range' : ''}`;
+      
+      // Determine confidence level class
+      let confidenceClass = 'confidence-low';
+      if (range.confidence >= 75) confidenceClass = 'confidence-high';
+      else if (range.confidence >= 50) confidenceClass = 'confidence-medium';
+      
+      row.innerHTML = `
+        <td class="border border-gray-200 px-4 py-3 text-sm font-medium text-gray-900">
+          ${range.range}
+        </td>
+        <td class="border border-gray-200 px-4 py-3 text-sm text-gray-700">
+          ${range.probability}%
+        </td>
+        <td class="border border-gray-200 px-4 py-3 text-sm confidence-cell ${confidenceClass}">
+          ${range.confidence}%
+        </td>
+      `;
+      
+      // Add tooltip for recommended ranges
+      if (range.isRecommended) {
+        row.title = `Recommended range: ${range.count} issues completed in this timeframe`;
+      }
+      
+      tableBody.appendChild(row);
+    });
+    
+    // Update recommendations
+    const recommendationText = chartContainer.querySelector('#recommendation-text');
+    if (recommendationText && probabilityData.recommendations) {
+      const { minDays, maxDays, confidenceLevel } = probabilityData.recommendations;
+      recommendationText.textContent = 
+        `For optimal planning, expect ${minDays}-${maxDays} days for completion with ${confidenceLevel}% confidence. Highlighted ranges show the most common completion times.`;
+    }
   }
   
   /**
