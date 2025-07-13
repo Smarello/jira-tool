@@ -5,6 +5,7 @@
  */
 
 import type { JiraIssue, CycleTime } from '../jira/types';
+import { PercentileCalculationError } from '../jira/types';
 import type { McpAtlassianClient } from '../mcp/atlassian';
 
 /**
@@ -159,35 +160,6 @@ export async function calculateIssuesCycleTime(
 }
 
 /**
- * Legacy wrapper for single issue calculation with board status fetching
- * @deprecated Use the optimized version with pre-fetched status IDs for batch processing
- * Following Clean Code: Backward compatibility
- */
-export async function calculateIssueCycleTimeLegacy(
-  issue: JiraIssue,
-  boardId: string,
-  mcpClient: McpAtlassianClient
-): Promise<IssueCycleTimeResult> {
-  // Fetch board status IDs for single issue (less efficient)
-  const [toDoStatusResponse, doneStatusResponse] = await Promise.all([
-    mcpClient.getBoardToDoStatusIds(boardId),
-    mcpClient.getBoardDoneStatusIds(boardId)
-  ]);
-
-  if (!toDoStatusResponse.success || !doneStatusResponse.success) {
-    console.error('[CycleTimeCalculator] Failed to fetch board status configuration for single issue');
-    return {
-      issueKey: issue.key,
-      boardId,
-      cycleTime: null,
-      calculatedAt: new Date().toISOString()
-    };
-  }
-
-  return calculateIssueCycleTime(issue, boardId, toDoStatusResponse.data, doneStatusResponse.data, mcpClient);
-}
-
-/**
  * Filters issues that have completed cycle time (reached Done status)
  * Following Clean Code: Express intent, immutability
  */
@@ -207,4 +179,110 @@ export function extractCycleTimes(
   return results
     .filter(result => result.cycleTime !== null)
     .map(result => result.cycleTime!.durationHours);
+}
+
+/**
+ * Calculates a specific percentile for cycle times
+ * Uses linear interpolation for accurate percentile calculation
+ * Following Clean Code: Single responsibility, express intent
+ * 
+ * @param cycleTimes Array of cycle times in hours
+ * @param percentile Target percentile (0-100)
+ * @returns Cycle time value at the specified percentile
+ * @throws PercentileCalculationError for invalid inputs
+ */
+export function calculateCycleTimePercentile(
+  cycleTimes: readonly number[],
+  percentile: number
+): number {
+  // Validation
+  if (percentile < 0 || percentile > 100) {
+    throw new PercentileCalculationError(
+      `Invalid percentile: ${percentile}. Must be between 0 and 100.`,
+      'INVALID_PERCENTILE',
+      { percentile }
+    );
+  }
+
+  if (cycleTimes.length === 0) {
+    throw new PercentileCalculationError(
+      'Cannot calculate percentile for empty cycle times array',
+      'EMPTY_DATASET',
+      { sampleSize: 0 }
+    );
+  }
+
+  // Sort cycle times for percentile calculation
+  const sortedTimes = [...cycleTimes].sort((a, b) => a - b);
+  
+  // Handle edge cases
+  if (percentile === 0) return sortedTimes[0];
+  if (percentile === 100) return sortedTimes[sortedTimes.length - 1];
+
+  // Calculate percentile using linear interpolation
+  const index = (percentile / 100) * (sortedTimes.length - 1);
+  const lowerIndex = Math.floor(index);
+  const upperIndex = Math.ceil(index);
+
+  // If exact index, return that value
+  if (lowerIndex === upperIndex) {
+    return sortedTimes[lowerIndex];
+  }
+
+  // Linear interpolation between two values
+  const lowerValue = sortedTimes[lowerIndex];
+  const upperValue = sortedTimes[upperIndex];
+  const fraction = index - lowerIndex;
+  
+  const result = lowerValue + (upperValue - lowerValue) * fraction;
+  
+  console.log(`[CycleTimeCalculator] P${percentile}: ${result.toFixed(1)}h (sample size: ${cycleTimes.length})`);
+  
+  return result;
+}
+
+/**
+ * Calculates multiple percentiles in a single operation
+ * More efficient than calling calculateCycleTimePercentile multiple times
+ * Following Clean Code: Performance optimization, compose operations, DRY principle
+ * 
+ * @param cycleTimes Array of cycle times in hours
+ * @param percentiles Array of target percentiles (0-100)
+ * @returns Record mapping percentile to cycle time value
+ * @throws PercentileCalculationError for invalid inputs
+ */
+export function calculateMultiplePercentiles(
+  cycleTimes: readonly number[],
+  percentiles: readonly number[]
+): Record<number, number> {
+  if (cycleTimes.length === 0) {
+    throw new PercentileCalculationError(
+      'Cannot calculate percentiles for empty cycle times array',
+      'EMPTY_DATASET',
+      { sampleSize: 0 }
+    );
+  }
+
+  // Validate all percentiles first
+  for (const p of percentiles) {
+    if (p < 0 || p > 100) {
+      throw new PercentileCalculationError(
+        `Invalid percentile: ${p}. All percentiles must be between 0 and 100.`,
+        'INVALID_PERCENTILE',
+        { percentile: p, allPercentiles: percentiles }
+      );
+    }
+  }
+
+  // Use the single percentile function for each calculation
+  // This ensures consistency and follows DRY principle
+  const result: Record<number, number> = {};
+  
+  for (const percentile of percentiles) {
+    result[percentile] = calculateCycleTimePercentile(cycleTimes, percentile);
+  }
+
+  console.log(`[CycleTimeCalculator] Calculated ${percentiles.length} percentiles for ${cycleTimes.length} cycle times`);
+  
+  return result;
 }

@@ -319,3 +319,42 @@ export interface ValidationWarning {
   readonly field?: string;
   readonly suggestion?: string;
 }
+
+/**
+ * Cycle Time Percentile Analysis Types
+ * Following Clean Architecture: Domain entities for statistical analysis
+ */
+
+/**
+ * Result of percentile calculation
+ */
+export interface PercentileResult {
+  readonly percentile: number;
+  readonly cycleTimeHours: number;
+  readonly sampleSize: number;
+  readonly calculatedAt: string;
+}
+
+/**
+ * Multiple percentiles calculation result
+ */
+export interface MultiplePercentilesResult {
+  readonly percentiles: Record<number, number>;
+  readonly sampleSize: number;
+  readonly calculatedAt: string;
+}
+
+/**
+ * Custom exception for percentile calculation errors
+ */
+export class PercentileCalculationError extends Error {
+  readonly code: string;
+  readonly context?: Record<string, unknown>;
+
+  constructor(message: string, code: string, context?: Record<string, unknown>) {
+    super(message);
+    this.name = 'PercentileCalculationError';
+    this.code = code;
+    this.context = context;
+  }
+}

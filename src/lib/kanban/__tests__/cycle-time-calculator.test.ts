@@ -8,10 +8,13 @@ import {
   calculateIssueCycleTime,
   calculateIssuesCycleTime,
   filterCompletedIssues,
-  extractCycleTimes
+  extractCycleTimes,
+  calculateCycleTimePercentile,
+  calculateMultiplePercentiles
 } from '../cycle-time-calculator.js';
 import type { IssueCycleTimeResult } from '../cycle-time-calculator.js';
 import type { JiraIssue, CycleTime } from '../../jira/types.js';
+import { PercentileCalculationError } from '../../jira/types.js';
 import type { McpAtlassianClient } from '../../mcp/atlassian.js';
 import type { IssueChangelog } from '../../jira/changelog-api.js';
 
@@ -369,5 +372,238 @@ describe('extractCycleTimes', () => {
 
     // Assert
     expect(cycleTimes).toEqual([]);
+  });
+});
+
+describe('calculateCycleTimePercentile', () => {
+  test('should calculate 50th percentile (median) correctly', () => {
+    // Arrange
+    const cycleTimes = [10, 20, 30, 40, 50];
+
+    // Act
+    const result = calculateCycleTimePercentile(cycleTimes, 50);
+
+    // Assert
+    expect(result).toBe(30); // Median of [10, 20, 30, 40, 50]
+  });
+
+  test('should calculate percentiles with linear interpolation', () => {
+    // Arrange
+    const cycleTimes = [10, 20, 30, 40];
+
+    // Act
+    const p25 = calculateCycleTimePercentile(cycleTimes, 25);
+    const p75 = calculateCycleTimePercentile(cycleTimes, 75);
+
+    // Assert
+    expect(p25).toBe(17.5); // 25% between 10 and 20: 10 + 0.5 * (20-10) = 15, but it's index-based: 10 + 0.25 * (40-10) = 17.5
+    expect(p75).toBe(32.5); // 75% between 30 and 40: 30 + 0.5 * (40-30) = 35, but index-based: 10 + 0.75 * (40-10) = 32.5
+  });
+
+  test('should handle edge case percentiles correctly', () => {
+    // Arrange
+    const cycleTimes = [5, 15, 25, 35, 45];
+
+    // Act
+    const p0 = calculateCycleTimePercentile(cycleTimes, 0);
+    const p100 = calculateCycleTimePercentile(cycleTimes, 100);
+
+    // Assert
+    expect(p0).toBe(5);   // Minimum value
+    expect(p100).toBe(45); // Maximum value
+  });
+
+  test('should handle single value array', () => {
+    // Arrange
+    const cycleTimes = [42];
+
+    // Act
+    const p50 = calculateCycleTimePercentile(cycleTimes, 50);
+    const p90 = calculateCycleTimePercentile(cycleTimes, 90);
+
+    // Assert
+    expect(p50).toBe(42);
+    expect(p90).toBe(42);
+  });
+
+  test('should sort unsorted array before calculation', () => {
+    // Arrange
+    const cycleTimes = [50, 10, 30, 20, 40]; // Unsorted
+
+    // Act
+    const p50 = calculateCycleTimePercentile(cycleTimes, 50);
+
+    // Assert
+    expect(p50).toBe(30); // Should sort to [10, 20, 30, 40, 50], median is 30
+  });
+
+  test('should throw error for empty array', () => {
+    // Arrange
+    const cycleTimes: number[] = [];
+
+    // Act & Assert
+    expect(() => calculateCycleTimePercentile(cycleTimes, 50))
+      .toThrow(PercentileCalculationError);
+    
+    expect(() => calculateCycleTimePercentile(cycleTimes, 50))
+      .toThrow('Cannot calculate percentile for empty cycle times array');
+  });
+
+  test('should throw error for invalid percentiles', () => {
+    // Arrange
+    const cycleTimes = [10, 20, 30];
+
+    // Act & Assert
+    expect(() => calculateCycleTimePercentile(cycleTimes, -1))
+      .toThrow(PercentileCalculationError);
+    
+    expect(() => calculateCycleTimePercentile(cycleTimes, 101))
+      .toThrow(PercentileCalculationError);
+    
+    expect(() => calculateCycleTimePercentile(cycleTimes, -1))
+      .toThrow('Invalid percentile: -1. Must be between 0 and 100.');
+  });
+
+  test('should handle real-world cycle times', () => {
+    // Arrange - Realistic cycle times in hours
+    const cycleTimes = [8, 16, 24, 32, 40, 48, 56, 64, 72, 80]; // 10 issues
+
+    // Act
+    const p50 = calculateCycleTimePercentile(cycleTimes, 50);
+    const p85 = calculateCycleTimePercentile(cycleTimes, 85);
+    const p95 = calculateCycleTimePercentile(cycleTimes, 95);
+
+    // Assert
+    expect(p50).toBeCloseTo(44);    // Median between 40 and 48
+    expect(p85).toBeCloseTo(69.2);  // 85th percentile 
+    expect(p95).toBeCloseTo(76.4);  // 95th percentile
+  });
+});
+
+describe('calculateMultiplePercentiles', () => {
+  test('should calculate multiple percentiles correctly', () => {
+    // Arrange
+    const cycleTimes = [10, 20, 30, 40, 50];
+    const percentiles = [25, 50, 75];
+
+    // Act
+    const result = calculateMultiplePercentiles(cycleTimes, percentiles);
+
+    // Assert
+    expect(result).toEqual({
+      25: 20,  // 25th percentile
+      50: 30,  // 50th percentile (median)
+      75: 40   // 75th percentile
+    });
+  });
+
+  test('should return same result as single percentile function', () => {
+    // Arrange
+    const cycleTimes = [8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
+    const percentiles = [50, 85, 95];
+
+    // Act
+    const multipleResult = calculateMultiplePercentiles(cycleTimes, percentiles);
+    const singleResults = {
+      50: calculateCycleTimePercentile(cycleTimes, 50),
+      85: calculateCycleTimePercentile(cycleTimes, 85),
+      95: calculateCycleTimePercentile(cycleTimes, 95)
+    };
+
+    // Assert
+    expect(multipleResult).toEqual(singleResults);
+  });
+
+  test('should handle edge case percentiles in batch', () => {
+    // Arrange
+    const cycleTimes = [5, 15, 25, 35];
+    const percentiles = [0, 33.33, 66.67, 100];
+
+    // Act
+    const result = calculateMultiplePercentiles(cycleTimes, percentiles);
+
+    // Assert
+    expect(result[0]).toBe(5);    // Minimum
+    expect(result[100]).toBe(35); // Maximum
+    expect(result[33.33]).toBeCloseTo(15, 1); // Approximately 15
+    expect(result[66.67]).toBeCloseTo(25, 1); // Approximately 25
+  });
+
+  test('should throw error for empty array', () => {
+    // Arrange
+    const cycleTimes: number[] = [];
+    const percentiles = [50, 85];
+
+    // Act & Assert
+    expect(() => calculateMultiplePercentiles(cycleTimes, percentiles))
+      .toThrow(PercentileCalculationError);
+    
+    expect(() => calculateMultiplePercentiles(cycleTimes, percentiles))
+      .toThrow('Cannot calculate percentiles for empty cycle times array');
+  });
+
+  test('should throw error for any invalid percentile', () => {
+    // Arrange
+    const cycleTimes = [10, 20, 30];
+    const invalidPercentiles = [50, 101, 85]; // One invalid percentile
+
+    // Act & Assert
+    expect(() => calculateMultiplePercentiles(cycleTimes, invalidPercentiles))
+      .toThrow(PercentileCalculationError);
+    
+    expect(() => calculateMultiplePercentiles(cycleTimes, invalidPercentiles))
+      .toThrow('Invalid percentile: 101. All percentiles must be between 0 and 100.');
+  });
+
+  test('should validate all percentiles before processing', () => {
+    // Arrange
+    const cycleTimes = [10, 20, 30];
+    const multipleInvalidPercentiles = [-1, 50, 150]; // Multiple invalid
+
+    // Act & Assert
+    expect(() => calculateMultiplePercentiles(cycleTimes, multipleInvalidPercentiles))
+      .toThrow(PercentileCalculationError);
+    
+    // Should throw for the first invalid percentile encountered
+    expect(() => calculateMultiplePercentiles(cycleTimes, multipleInvalidPercentiles))
+      .toThrow('Invalid percentile: -1');
+  });
+
+  test('should handle large datasets efficiently', () => {
+    // Arrange
+    const cycleTimes = Array.from({ length: 1000 }, (_, i) => i + 1); // 1 to 1000
+    const percentiles = [10, 25, 50, 75, 90, 95, 99];
+
+    // Act
+    const start = Date.now();
+    const result = calculateMultiplePercentiles(cycleTimes, percentiles);
+    const duration = Date.now() - start;
+
+    // Assert
+    expect(result[50]).toBe(500.5); // Median
+    expect(result[90]).toBe(900.1); // 90th percentile
+    expect(duration).toBeLessThan(100); // Should be fast (less than 100ms)
+    expect(Object.keys(result)).toHaveLength(7); // All percentiles calculated
+  });
+
+  test('should handle SLA-focused percentiles for agile teams', () => {
+    // Arrange - Real cycle times from a sprint (in hours)
+    const cycleTimes = [
+      12, 18, 24, 30, 36, 42, 48, 54, 60, 66,  // Stories
+      72, 78, 84, 90, 96, 102, 108, 114, 120   // Larger features
+    ];
+    const slaPercentiles = [50, 85, 95]; // Common SLA targets
+
+    // Act
+    const result = calculateMultiplePercentiles(cycleTimes, slaPercentiles);
+
+    // Assert
+    expect(result[50]).toBeGreaterThan(0); // P50 should be reasonable
+    expect(result[85]).toBeGreaterThan(result[50]); // P85 > P50
+    expect(result[95]).toBeGreaterThan(result[85]); // P95 > P85
+    
+    // Practical assertions for agile planning
+    expect(result[50]).toBeLessThan(result[95]); // Median should be significantly less than P95
+    expect(result[95] / result[50]).toBeGreaterThan(1.5); // P95 should be at least 50% higher than median
   });
 });
