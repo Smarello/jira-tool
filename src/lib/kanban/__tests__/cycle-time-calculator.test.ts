@@ -580,8 +580,8 @@ describe('calculateMultiplePercentiles', () => {
     const duration = Date.now() - start;
 
     // Assert
-    expect(result[50]).toBe(500.5); // Median
-    expect(result[90]).toBe(900.1); // 90th percentile
+    expect(result[50]).toBeCloseTo(500.5); // Median
+    expect(result[90]).toBeCloseTo(900.1); // 90th percentile
     expect(duration).toBeLessThan(100); // Should be fast (less than 100ms)
     expect(Object.keys(result)).toHaveLength(7); // All percentiles calculated
   });

@@ -345,6 +345,30 @@ export interface MultiplePercentilesResult {
 }
 
 /**
+ * Kanban Analytics Result - contains cycle time percentiles for a board
+ * Following Clean Code: Express intent, immutable data structure
+ */
+export interface KanbanAnalyticsResult {
+  readonly boardId: string;
+  readonly totalIssues: number;
+  readonly completedIssues: number;
+  readonly cycleTimePercentiles: CycleTimePercentiles;
+  readonly calculatedAt: string; // ISO timestamp
+}
+
+/**
+ * Cycle Time Percentiles - statistical distribution of cycle times
+ * Following Clean Code: Value object, immutable
+ */
+export interface CycleTimePercentiles {
+  readonly p50: number; // 50th percentile (median) in hours
+  readonly p75: number; // 75th percentile in hours  
+  readonly p85: number; // 85th percentile in hours
+  readonly p95: number; // 95th percentile in hours
+  readonly sampleSize: number; // Number of completed issues used for calculation
+}
+
+/**
  * Custom exception for percentile calculation errors
  */
 export class PercentileCalculationError extends Error {

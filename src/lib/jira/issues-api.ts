@@ -112,6 +112,47 @@ export class JiraIssuesApi {
   }
 
   /**
+   * Fetches issues for a board with story points
+   * Following Clean Code: Express intent, single responsibility
+   */
+  async fetchBoardIssues(boardId: string): Promise<readonly JiraIssueWithPoints[]> {
+    const storyPointsField = await this.discoverStoryPointsField();
+    
+    const fields = [
+      'id', 'key', 'summary', 'status', 'issuetype', 'created', 'updated', 'resolved',
+      'statuscategorychangedate'
+    ];
+    
+    if (storyPointsField) {
+      fields.push(storyPointsField);
+    }
+
+    const allIssues: any[] = [];
+    let startAt = 0;
+    const maxResults = 100; // Batch size for efficiency
+    let total = 0;
+
+    do {
+      const endpoint = `/rest/agile/1.0/board/${boardId}/issue?fields=${fields.join(',')}&startAt=${startAt}&maxResults=${maxResults}`;
+      const response = await this.apiClient.get(endpoint);
+      
+      const responseData = response.data as any;
+      const issues = responseData?.issues || [];
+      total = responseData?.total || 0;
+      
+      allIssues.push(...issues);
+      startAt += maxResults;
+      
+    } while (startAt < total);
+
+    return allIssues.map(issue => ({
+      ...this.mapIssue(issue),
+      storyPoints: this.extractStoryPoints(issue, storyPointsField),
+      statusCategoryChangedDate: this.extractStatusCategoryChangedDate(issue)
+    }));
+  }
+
+  /**
    * Extracts story points from issue
    * Following Clean Code: Express intent, null handling
    */
