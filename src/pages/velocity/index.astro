@@ -276,11 +276,21 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
 
     try {
       if (boardType === 'kanban') {
+        // Update PeriodSelector state for Kanban analytics
+        if ((window as any).kanbanAnalytics?.updatePeriodSelectorState) {
+          (window as any).kanbanAnalytics.updatePeriodSelectorState(boardId, false);
+        }
+        
         // Load Kanban analytics
         if ((window as any).kanbanAnalytics?.loadKanbanAnalytics) {
           await (window as any).kanbanAnalytics.loadKanbanAnalytics(boardId);
         }
       } else {
+        // For Scrum boards, ensure Kanban PeriodSelector is disabled
+        if ((window as any).kanbanAnalytics?.updatePeriodSelectorState) {
+          (window as any).kanbanAnalytics.updatePeriodSelectorState(null, false);
+        }
+        
         // Load Scrum analytics (default for 'scrum', 'simple', or unknown types)
         if ((window as any).scrumAnalytics?.loadScrumAnalytics) {
           await (window as any).scrumAnalytics.loadScrumAnalytics(boardId);

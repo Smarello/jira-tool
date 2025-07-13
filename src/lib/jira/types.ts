@@ -273,12 +273,33 @@ export interface KanbanIssueRepository {
 }
 
 /**
+ * Predefined time periods for analytics filtering
+ * Following Clean Code: Express intent, clear enumeration
+ */
+export enum TimePeriod {
+  LAST_15_DAYS = 'last-15-days',
+  LAST_MONTH = 'last-month', 
+  LAST_3_MONTHS = 'last-3-months',
+  CUSTOM = 'custom'
+}
+
+/**
+ * Time period filter for analytics
+ * Following Clean Code: Value object, immutable
+ */
+export interface TimePeriodFilter {
+  readonly type: TimePeriod;
+  readonly customRange?: DateRange;
+}
+
+/**
  * Issue filters for repository queries
  */
 export interface IssueFilters {
   readonly issueTypes?: readonly string[];
   readonly assignees?: readonly string[];
   readonly dateRange?: DateRange;
+  readonly timePeriod?: TimePeriodFilter;
   readonly excludeReopened?: boolean;
   readonly jqlFilter?: string;
 }

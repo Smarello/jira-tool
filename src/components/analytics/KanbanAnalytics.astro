@@ -6,6 +6,7 @@
  */
 
 import KanbanProgressLoader from '../ui/KanbanProgressLoader.astro';
+import PeriodSelector from '../ui/PeriodSelector.astro';
 
 export interface Props {
   boardId: string | null;
@@ -16,6 +17,17 @@ const { boardId, loading = false } = Astro.props;
 ---
 
 <div class="kanban-analytics">
+  <!-- Period Selection Controls -->
+  <div class="period-selection-section mb-6">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      <PeriodSelector
+        selectedPeriod="last-15-days"
+        disabled={!boardId || loading}
+        class="max-w-md"
+      />
+    </div>
+  </div>
+
   <!-- Kanban Analytics Content -->
   <div class="kanban-content-section">
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -320,6 +332,8 @@ const { boardId, loading = false } = Astro.props;
   let currentBoardId: string | null = null;
   let isLoading = false;
   let cancelController: AbortController | null = null;
+  let currentPeriod: string = 'last-15-days';
+  let currentCustomRange: { start: string; end: string } | null = null;
   
   /**
    * Shows loading overlay with progress tracking
@@ -359,14 +373,8 @@ const { boardId, loading = false } = Astro.props;
   function displayCycleTimeData(data: KanbanAnalyticsData) {
     console.log('[KanbanAnalytics] Displaying cycle time data for board:', data.boardId);
     
-    // Find the cycle time chart container within the kanban view
-    const kanbanView = document.getElementById('kanban-analytics-view');
-    if (!kanbanView) {
-      console.error('[KanbanAnalytics] Kanban analytics view not found');
-      return;
-    }
-    
-    const chartContainer = kanbanView.querySelector('#cycle-time-chart-container');
+    // Find the cycle time chart container
+    const chartContainer = document.querySelector('#cycle-time-chart-container');
     if (!chartContainer) {
       console.error('[KanbanAnalytics] Cycle time chart container not found');
       return;
@@ -484,14 +492,8 @@ const { boardId, loading = false } = Astro.props;
   function showErrorState(error: string) {
     console.error('[KanbanAnalytics] Error loading analytics:', error);
     
-    // Find elements within the chart container
-    const kanbanView = document.getElementById('kanban-analytics-view');
-    if (!kanbanView) {
-      console.error('[KanbanAnalytics] Kanban analytics view not found');
-      return;
-    }
-    
-    const chartContainer = kanbanView.querySelector('#cycle-time-chart-container');
+    // Find the chart container
+    const chartContainer = document.querySelector('#cycle-time-chart-container');
     if (!chartContainer) {
       console.error('[KanbanAnalytics] Cycle time chart container not found');
       return;
@@ -526,28 +528,45 @@ const { boardId, loading = false } = Astro.props;
   }
   
   /**
-   * Loads Kanban analytics data for a specific board
+   * Loads Kanban analytics data for a specific board with optional period filter
    * Following Clean Code: Express intent, async/await pattern
    */
-  async function loadKanbanAnalytics(boardId: string) {
-    if (!boardId || boardId === currentBoardId && isLoading) return;
+  async function loadKanbanAnalytics(boardId: string, period?: string, customRange?: { start: string; end: string }) {
+    if (!boardId) return;
+    
+    // Update current state
+    currentBoardId = boardId;
+    if (period) currentPeriod = period;
+    if (customRange) currentCustomRange = customRange;
+    
+    // Enable PeriodSelector now that we have a board
+    updatePeriodSelectorState(boardId, false);
     
     // Cancel any existing request
     if (cancelController) {
       cancelController.abort();
     }
     
-    currentBoardId = boardId;
     isLoading = true;
+    updatePeriodSelectorState(boardId, true); // Disable during loading
     cancelController = new AbortController();
     
-    console.log(`[KanbanAnalytics] Loading analytics for board: ${boardId}`);
+    console.log(`[KanbanAnalytics] Loading analytics for board: ${boardId}, period: ${currentPeriod}`);
     
     try {
       showLoadingOverlay();
       updateProgressLoader('issues', 10, 'Fetching board issues...');
       
-      const response = await fetch(`/api/kanban/${boardId}/analytics`, {
+      // Build API URL with period parameters
+      const url = new URL(`/api/kanban/${boardId}/analytics`, window.location.origin);
+      url.searchParams.set('period', currentPeriod);
+      
+      if (currentPeriod === 'custom' && currentCustomRange) {
+        url.searchParams.set('start', currentCustomRange.start);
+        url.searchParams.set('end', currentCustomRange.end);
+      }
+      
+      const response = await fetch(url.toString(), {
         signal: cancelController.signal
       });
       
@@ -579,6 +598,7 @@ const { boardId, loading = false } = Astro.props;
       showErrorState(errorMessage);
     } finally {
       isLoading = false;
+      updatePeriodSelectorState(currentBoardId, false); // Re-enable after loading
       cancelController = null;
     }
   }
@@ -594,10 +614,60 @@ const { boardId, loading = false } = Astro.props;
     }
   }
   
+  /**
+   * Handles period change events from PeriodSelector
+   * Following Clean Code: Event-driven architecture, clear intent
+   */
+  function handlePeriodChange(event: CustomEvent) {
+    const { period, customRange } = event.detail;
+    
+    if (!currentBoardId) return;
+    
+    console.log('[KanbanAnalytics] Period changed:', { period, customRange });
+    
+    // Reload analytics with new period
+    loadKanbanAnalytics(currentBoardId, period, customRange);
+  }
+  
+  /**
+   * Updates PeriodSelector state based on board selection
+   * Following Clean Code: Single responsibility, DOM manipulation
+   */
+  function updatePeriodSelectorState(boardId: string | null, loading: boolean = false) {
+    const periodSelect = document.getElementById('period-select') as HTMLSelectElement;
+    const customStartInput = document.getElementById('custom-start') as HTMLInputElement;
+    const customEndInput = document.getElementById('custom-end') as HTMLInputElement;
+    const applyButton = document.getElementById('apply-custom-dates') as HTMLButtonElement;
+    
+    const shouldDisable = !boardId || loading;
+    
+    // Update all period selector elements
+    [periodSelect, customStartInput, customEndInput, applyButton].forEach(element => {
+      if (element) {
+        element.disabled = shouldDisable;
+      }
+    });
+    
+    console.log(`[KanbanAnalytics] PeriodSelector ${shouldDisable ? 'disabled' : 'enabled'} (boardId: ${boardId}, loading: ${loading})`);
+  }
+
+  // Setup event listeners
+  document.addEventListener('periodChanged', handlePeriodChange as EventListener);
+  
+  // Initialize PeriodSelector state on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    // Check if we have a board ID available from the parent component
+    const kanbanAnalyticsElement = document.querySelector('.kanban-analytics');
+    if (kanbanAnalyticsElement && currentBoardId) {
+      updatePeriodSelectorState(currentBoardId, false);
+    }
+  });
+  
   // Export functions for parent component access
   (window as any).kanbanAnalytics = {
     loadKanbanAnalytics,
-    cancelLoading
+    cancelLoading,
+    updatePeriodSelectorState // Export for external board selection events
   };
   
   // Export for global access (used by progress loader retry button)

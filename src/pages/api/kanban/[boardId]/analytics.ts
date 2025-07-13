@@ -7,8 +7,10 @@
 import type { APIRoute } from 'astro';
 import { calculateKanbanAnalytics } from '../../../../lib/services/kanban-analytics-service.js';
 import { getMcpAtlassianClient } from '../../../../lib/mcp/atlassian.js';
+import { TimePeriod } from '../../../../lib/jira/types.js';
+import type { TimePeriodFilter } from '../../../../lib/jira/types.js';
 
-export const GET: APIRoute = async ({ params }) => {
+export const GET: APIRoute = async ({ params, url }) => {
   const boardId = params.boardId;
   
   if (!boardId || typeof boardId !== 'string') {
@@ -26,8 +28,26 @@ export const GET: APIRoute = async ({ params }) => {
   try {
     console.log(`[KanbanAnalyticsAPI] Calculating analytics for board ${boardId}`);
     
+    // Parse query parameters for time period filter
+    const timePeriodType = url.searchParams.get('period') as TimePeriod | null;
+    const customStart = url.searchParams.get('start');
+    const customEnd = url.searchParams.get('end');
+    
+    let timePeriodFilter: TimePeriodFilter | undefined;
+    
+    if (timePeriodType && Object.values(TimePeriod).includes(timePeriodType)) {
+      timePeriodFilter = {
+        type: timePeriodType,
+        customRange: timePeriodType === TimePeriod.CUSTOM && customStart && customEnd 
+          ? { start: customStart, end: customEnd }
+          : undefined
+      };
+      
+      console.log(`[KanbanAnalyticsAPI] Using time period filter:`, timePeriodFilter);
+    }
+    
     const mcpClient = getMcpAtlassianClient();
-    const analytics = await calculateKanbanAnalytics(boardId, mcpClient);
+    const analytics = await calculateKanbanAnalytics(boardId, mcpClient, timePeriodFilter);
     
     console.log(`[KanbanAnalyticsAPI] Analytics calculated successfully for board ${boardId}`);
     console.log(`  - Total issues: ${analytics.totalIssues}`);

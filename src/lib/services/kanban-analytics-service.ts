@@ -4,7 +4,8 @@
  * Following Clean Code: Single responsibility, dependency injection
  */
 
-import type { KanbanAnalyticsResult, CycleTimePercentiles, CycleTimeProbabilityDistribution } from '../jira/types';
+import type { KanbanAnalyticsResult, CycleTimePercentiles, CycleTimeProbabilityDistribution, TimePeriodFilter } from '../jira/types';
+import { TimePeriod } from '../jira/types';
 import type { McpAtlassianClient } from '../mcp/atlassian';
 import { 
   calculateIssuesCycleTime, 
@@ -20,7 +21,8 @@ import {
  */
 export async function calculateKanbanAnalytics(
   boardId: string,
-  mcpClient: McpAtlassianClient
+  mcpClient: McpAtlassianClient,
+  timePeriodFilter?: TimePeriodFilter
 ): Promise<KanbanAnalyticsResult> {
   console.log(`[KanbanAnalyticsService] Starting analytics calculation for board ${boardId}`);
   
@@ -38,8 +40,12 @@ export async function calculateKanbanAnalytics(
     const allIssues = boardIssuesResponse.data;
     console.log(`[KanbanAnalyticsService] Fetched ${allIssues.length} issues for board ${boardId}`);
 
-    // Calculate cycle times for all issues
-    const cycleTimeResults = await calculateIssuesCycleTime(allIssues, boardId, mcpClient);
+    // Apply time period filter if specified
+    const filteredIssues = timePeriodFilter ? filterIssuesByTimePeriod(allIssues, timePeriodFilter) : allIssues;
+    console.log(`[KanbanAnalyticsService] After time period filter: ${filteredIssues.length} issues`);
+
+    // Calculate cycle times for filtered issues
+    const cycleTimeResults = await calculateIssuesCycleTime(filteredIssues, boardId, mcpClient);
     
     // Filter completed issues and extract cycle times
     const completedResults = filterCompletedIssues(cycleTimeResults);
@@ -185,8 +191,8 @@ function generateDayRanges(maxDays: number): Array<{ min: number; max: number }>
   const ranges: Array<{ min: number; max: number }> = [];
   
   // Start with single day ranges for first few days
-  for (let i = 0; i < Math.min(maxDays, 10); i+=4) {
-    ranges.push({ min: i, max: i + 4 });
+  for (let i = 0; i < Math.min(maxDays, 10); i+=5) {
+    ranges.push({ min: i, max: i + 5 });
   }
   
   // Add broader ranges for higher values if needed
@@ -198,7 +204,6 @@ function generateDayRanges(maxDays: number): Array<{ min: number; max: number }>
       current += rangeSize;
     }
   }
-  console.error(ranges);
   return ranges;
 }
 
@@ -230,4 +235,48 @@ function generateRecommendations(
     maxDays: Math.ceil(p75Days),
     confidenceLevel: 75
   };
+}
+
+/**
+ * Filters issues by time period based on entry date or creation date
+ * Following Clean Code: Pure function, single responsibility
+ */
+function filterIssuesByTimePeriod(issues: readonly any[], timePeriodFilter: TimePeriodFilter): readonly any[] {
+  const now = new Date();
+  let startDate: Date;
+  let endDate: Date = now;
+
+  switch (timePeriodFilter.type) {
+    case TimePeriod.LAST_15_DAYS:
+      startDate = new Date(now.getTime() - (15 * 24 * 60 * 60 * 1000));
+      break;
+    case TimePeriod.LAST_MONTH:
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      break;
+    case TimePeriod.LAST_3_MONTHS:
+      startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      break;
+    case TimePeriod.CUSTOM:
+      if (!timePeriodFilter.customRange) {
+        return issues; // No filter if custom range not specified
+      }
+      startDate = new Date(timePeriodFilter.customRange.start);
+      endDate = new Date(timePeriodFilter.customRange.end);
+      break;
+    default:
+      return issues; // No filter for unknown types
+  }
+
+  return issues.filter(issue => {
+    // Use entry date if available, otherwise creation date
+    // Note: This assumes the issue object has these fields - may need adjustment based on actual structure
+    const referenceDate = issue.boardEntryDate || issue.created;
+    
+    if (!referenceDate) {
+      return true; // Include issues without date information
+    }
+
+    const issueDate = new Date(referenceDate);
+    return issueDate >= startDate && issueDate <= endDate;
+  });
 }

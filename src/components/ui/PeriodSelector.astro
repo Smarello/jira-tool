@@ -1,0 +1,244 @@
+---
+/**
+ * Period Selector Component
+ * Allows users to select time periods for analytics filtering
+ * Following Clean Code: Single responsibility, clear interface
+ */
+
+import Select from './Select.astro';
+
+export interface Props {
+  /** Current selected period */
+  selectedPeriod?: string;
+  /** Custom start date if period is 'custom' */
+  customStart?: string;
+  /** Custom end date if period is 'custom' */  
+  customEnd?: string;
+  /** Whether the selector is disabled */
+  disabled?: boolean;
+  /** CSS classes to apply */
+  class?: string;
+}
+
+const { 
+  selectedPeriod = 'last-15-days',
+  customStart = '',
+  customEnd = '',
+  disabled = false,
+  class: className = ''
+} = Astro.props;
+
+// Period options with English labels
+const periodOptions = [
+  { value: 'last-15-days', label: 'Last 15 days' },
+  { value: 'last-month', label: 'Last month' },
+  { value: 'last-3-months', label: 'Last 3 months' },
+  { value: 'custom', label: 'Custom' }
+];
+
+// Format date for input (YYYY-MM-DD)
+const formatDateForInput = (date: string) => {
+  if (!date) return '';
+  try {
+    return new Date(date).toISOString().split('T')[0];
+  } catch {
+    return '';
+  }
+};
+
+// Default dates for custom range (last 15 days)
+const defaultEndDate = new Date().toISOString().split('T')[0];
+const defaultStartDate = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+---
+
+<div class={`period-selector ${className}`}>
+  <div class="flex flex-col space-y-4">
+    <!-- Period Selection -->
+    <div>
+      <label for="period-select" class="block text-sm font-medium text-gray-700 mb-2">
+        Time Period
+      </label>
+      <Select
+        id="period-select"
+        name="period"
+        value={selectedPeriod}
+        options={periodOptions}
+        disabled={disabled}
+        aria-label="Select time period for analytics"
+        class="period-select-dropdown"
+      />
+    </div>
+    
+    <!-- Custom Date Range (hidden by default) -->
+    <div id="custom-date-range" class={selectedPeriod === 'custom' ? 'custom-range-visible' : 'custom-range-hidden'}>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="custom-start" class="block text-sm font-medium text-gray-700 mb-1">
+            Start Date
+          </label>
+          <input
+            type="date"
+            id="custom-start"
+            name="customStart"
+            value={customStart || defaultStartDate}
+            disabled={disabled}
+            class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
+                   focus:outline-none focus:ring-purple-500 focus:border-purple-500
+                   disabled:bg-gray-100 disabled:cursor-not-allowed text-sm"
+          />
+        </div>
+        <div>
+          <label for="custom-end" class="block text-sm font-medium text-gray-700 mb-1">
+            End Date
+          </label>
+          <input
+            type="date"
+            id="custom-end"
+            name="customEnd"
+            value={customEnd || defaultEndDate}
+            disabled={disabled}
+            class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm 
+                   focus:outline-none focus:ring-purple-500 focus:border-purple-500
+                   disabled:bg-gray-100 disabled:cursor-not-allowed text-sm"
+          />
+        </div>
+      </div>
+      
+      <!-- Apply Button for Custom Dates -->
+      <div class="mt-3">
+        <button
+          type="button"
+          id="apply-custom-dates"
+          disabled={disabled}
+          class="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium
+                 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2
+                 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+        >
+          Apply Custom Period
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .period-selector {
+    @apply w-full;
+  }
+  
+  .custom-range-hidden {
+    @apply hidden;
+  }
+  
+  .custom-range-visible {
+    @apply block;
+  }
+  
+  .custom-range-visible {
+    animation: slideDown 0.2s ease-out;
+  }
+  
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>
+
+<script>
+  // Period Selector Client-side Logic
+  // Following Clean Code: Express intent, event-driven architecture
+  
+  /**
+   * Handles period selection change
+   * Following Clean Code: Single responsibility, clear event handling
+   */
+  function handlePeriodChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    const selectedPeriod = target.value;
+    
+    // Show/hide custom date range
+    const customDateRange = document.getElementById('custom-date-range');
+    if (customDateRange) {
+      if (selectedPeriod === 'custom') {
+        customDateRange.className = 'custom-range-visible';
+      } else {
+        customDateRange.className = 'custom-range-hidden';
+        
+        // For predefined periods, trigger immediate update
+        dispatchPeriodChangeEvent(selectedPeriod);
+      }
+    }
+  }
+  
+  /**
+   * Handles apply button click for custom dates
+   * Following Clean Code: Express intent, validation
+   */
+  function handleApplyCustomDates() {
+    const startInput = document.getElementById('custom-start') as HTMLInputElement;
+    const endInput = document.getElementById('custom-end') as HTMLInputElement;
+    
+    if (!startInput || !endInput) return;
+    
+    const startDate = startInput.value;
+    const endDate = endInput.value;
+    
+    // Basic validation
+    if (!startDate || !endDate) {
+      alert('Please select both start and end dates');
+      return;
+    }
+    
+    if (new Date(startDate) > new Date(endDate)) {
+      alert('Start date must be before end date');
+      return;
+    }
+    
+    // Dispatch custom period change event
+    dispatchPeriodChangeEvent('custom', startDate, endDate);
+  }
+  
+  /**
+   * Dispatches period change event for parent components
+   * Following Clean Code: Event-driven communication, clear contract
+   */
+  function dispatchPeriodChangeEvent(period: string, startDate?: string, endDate?: string) {
+    const event = new CustomEvent('periodChanged', {
+      detail: {
+        period,
+        customRange: period === 'custom' && startDate && endDate 
+          ? { start: startDate, end: endDate }
+          : undefined
+      }
+    });
+    
+    document.dispatchEvent(event);
+  }
+  
+  // Event listeners setup
+  document.addEventListener('DOMContentLoaded', () => {
+    const periodSelect = document.getElementById('period-select');
+    const applyButton = document.getElementById('apply-custom-dates');
+    
+    if (periodSelect) {
+      periodSelect.addEventListener('change', handlePeriodChange);
+    }
+    
+    if (applyButton) {
+      applyButton.addEventListener('click', handleApplyCustomDates);
+    }
+  });
+  
+  // Export for external access
+  (window as any).periodSelector = {
+    handlePeriodChange,
+    handleApplyCustomDates,
+    dispatchPeriodChangeEvent
+  };
+</script>
