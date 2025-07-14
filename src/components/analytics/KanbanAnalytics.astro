@@ -386,11 +386,6 @@ const { boardId, loading = false } = Astro.props;
   .confidence-cell {
     @apply transition-all duration-300;
   }
-  
-  /* Gradient colors for confidence levels */
-  .confidence-low { @apply bg-red-50 text-red-800; }
-  .confidence-medium { @apply bg-yellow-50 text-yellow-800; }
-  .confidence-high { @apply bg-green-50 text-green-800; }
 </style>
 
 <script>
@@ -569,10 +564,13 @@ const { boardId, loading = false } = Astro.props;
       const row = document.createElement('tr');
       row.className = `probability-row ${range.isRecommended ? 'recommended-range' : ''}`;
       
-      // Determine confidence level class
-      let confidenceClass = 'confidence-low';
-      if (range.confidence >= 75) confidenceClass = 'confidence-high';
-      else if (range.confidence >= 50) confidenceClass = 'confidence-medium';
+      // Determine confidence level classes using Tailwind directly
+      let confidenceClasses = 'bg-red-50 text-red-800'; // < 50%
+      if (range.confidence >= 75) {
+        confidenceClasses = 'bg-green-50 text-green-800'; // >= 75%
+      } else if (range.confidence >= 50) {
+        confidenceClasses = 'bg-yellow-50 text-yellow-800'; // 50-74%
+      }
       
       row.innerHTML = `
         <td class="border border-gray-200 px-4 py-3 text-sm font-medium text-gray-900">
@@ -581,7 +579,7 @@ const { boardId, loading = false } = Astro.props;
         <td class="border border-gray-200 px-4 py-3 text-sm text-gray-700">
           ${range.probability}%
         </td>
-        <td class="border border-gray-200 px-4 py-3 text-sm confidence-cell ${confidenceClass}">
+        <td class="border border-gray-200 px-4 py-3 text-sm confidence-cell transition-all duration-300 ${confidenceClasses}">
           ${range.confidence}%
         </td>
       `;
