@@ -366,6 +366,26 @@ export interface MultiplePercentilesResult {
 }
 
 /**
+ * Issue detail for analytics display
+ * Contains essential information for showing issue details in analytics tables
+ * Following Clean Code: Value object, expressing UI intent
+ */
+export interface IssueDetail {
+  readonly key: string;
+  readonly summary: string;
+  readonly issueType: {
+    readonly name: string;
+    readonly iconUrl: string;
+  };
+  readonly status: {
+    readonly name: string;
+    readonly statusCategory: StatusCategory;
+  };
+  readonly jiraUrl: string; // Direct link to the issue in Jira
+  readonly cycleTimeDays?: number; // Cycle time in days if completed
+}
+
+/**
  * Kanban Analytics Result - contains cycle time percentiles for a board
  * Following Clean Code: Express intent, immutable data structure
  */
@@ -375,6 +395,7 @@ export interface KanbanAnalyticsResult {
   readonly completedIssues: number;
   readonly cycleTimePercentiles: CycleTimePercentiles;
   readonly cycleTimeProbability?: CycleTimeProbabilityDistribution;
+  readonly issuesDetails: readonly IssueDetail[]; // Details of issues used for percentile calculation
   readonly calculatedAt: string; // ISO timestamp
 }
 

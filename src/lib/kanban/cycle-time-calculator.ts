@@ -113,39 +113,21 @@ export async function calculateIssueCycleTime(
 }
 
 /**
- * Calculates cycle time for multiple issues with optimized API calls
- * Fetches board configuration ONCE for all issues - MASSIVE OPTIMIZATION!
- * Following Clean Code: Compose operations, performance optimization
+ * Calculates cycle time for multiple issues with pre-fetched status configuration
+ * No longer fetches board configuration - expects it to be provided from outside
+ * Following Clean Code: Dependency injection, single responsibility
  */
 export async function calculateIssuesCycleTime(
   issues: readonly JiraIssue[],
   boardId: string,
+  toDoStatusIds: readonly string[],
+  doneStatusIds: readonly string[],
   mcpClient: McpAtlassianClient
 ): Promise<readonly IssueCycleTimeResult[]> {
   console.log(`[CycleTimeCalculator] Starting cycle time calculation for ${issues.length} issues on board ${boardId}`);
+  console.log(`[CycleTimeCalculator] Using status config: To Do [${toDoStatusIds.join(', ')}], Done [${doneStatusIds.join(', ')}]`);
 
-  // OPTIMIZATION: Fetch board status IDs once for all issues
-  const [toDoStatusResponse, doneStatusResponse] = await Promise.all([
-    mcpClient.getBoardToDoStatusIds(boardId),
-    mcpClient.getBoardDoneStatusIds(boardId)
-  ]);
-
-  if (!toDoStatusResponse.success || !doneStatusResponse.success) {
-    console.error('[CycleTimeCalculator] Failed to fetch board status configuration');
-    return issues.map(issue => ({
-      issueKey: issue.key,
-      boardId,
-      cycleTime: null,
-      calculatedAt: new Date().toISOString()
-    }));
-  }
-
-  const toDoStatusIds = toDoStatusResponse.data;
-  const doneStatusIds = doneStatusResponse.data;
-
-  console.log(`[CycleTimeCalculator] Board ${boardId} config: To Do statuses [${toDoStatusIds.join(', ')}], Done statuses [${doneStatusIds.join(', ')}]`);
-
-  // Process issues sequentially with pre-fetched status IDs
+  // Process issues sequentially with provided status IDs
   const results: IssueCycleTimeResult[] = [];
   
   for (const issue of issues) {

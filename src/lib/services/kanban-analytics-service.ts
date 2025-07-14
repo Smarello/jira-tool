@@ -4,14 +4,18 @@
  * Following Clean Code: Single responsibility, dependency injection
  */
 
-import type { KanbanAnalyticsResult, CycleTimePercentiles, CycleTimeProbabilityDistribution, TimePeriodFilter } from '../jira/types';
+import type { KanbanAnalyticsResult, CycleTimePercentiles, CycleTimeProbabilityDistribution, TimePeriodFilter, IssueDetail } from '../jira/types';
 import { TimePeriod } from '../jira/types';
 import type { McpAtlassianClient } from '../mcp/atlassian';
+import type { JiraIssue } from '../jira/types';
+import { createJiraConfig } from '../jira/config.js';
+import { getBoardStatusConfiguration } from '../jira/board-config.js';
 import { 
   calculateIssuesCycleTime, 
   filterCompletedIssues, 
   extractCycleTimes, 
-  calculateMultiplePercentiles 
+  calculateMultiplePercentiles,
+  type IssueCycleTimeResult
 } from '../kanban/cycle-time-calculator';
 
 /**
@@ -51,8 +55,22 @@ export async function calculateKanbanAnalytics(
       console.log(`[KanbanAnalyticsService] After issue types filter [${issueTypesFilter.join(', ')}]: ${filteredIssues.length} issues`);
     }
 
-    // Calculate cycle times for filtered issues
-    const cycleTimeResults = await calculateIssuesCycleTime(filteredIssues, boardId, mcpClient);
+    // Get board status configuration for cycle time calculation
+    const boardConfig = await getBoardStatusConfiguration(boardId, mcpClient);
+    
+    if (!boardConfig) {
+      console.error(`[KanbanAnalyticsService] Failed to fetch board status configuration for board ${boardId}`);
+      return createEmptyAnalyticsResult(boardId, calculatedAt);
+    }
+
+    // Calculate cycle times for filtered issues with board configuration
+    const cycleTimeResults = await calculateIssuesCycleTime(
+      filteredIssues, 
+      boardId, 
+      boardConfig.toDoStatusIds, 
+      boardConfig.doneStatusIds, 
+      mcpClient
+    );
     
     // Filter completed issues and extract cycle times
     const completedResults = filterCompletedIssues(cycleTimeResults);
@@ -76,12 +94,16 @@ export async function calculateKanbanAnalytics(
       };
     }
 
+    // Create issue details for the analytics result
+    const issuesDetails = createIssueDetails(completedResults, filteredIssues);
+
     const result: KanbanAnalyticsResult = {
       boardId,
       totalIssues: allIssues.length,
       completedIssues: completedResults.length,
       cycleTimePercentiles: percentiles,
       cycleTimeProbability: calculateProbabilityDistribution(cycleTimes),
+      issuesDetails,
       calculatedAt
     };
 
@@ -109,6 +131,7 @@ function createEmptyAnalyticsResult(boardId: string, calculatedAt: string): Kanb
     totalIssues: 0,
     completedIssues: 0,
     cycleTimePercentiles: createEmptyPercentiles(),
+    issuesDetails: [],
     calculatedAt
   };
 }
@@ -198,15 +221,16 @@ function generateDayRanges(maxDays: number): Array<{ min: number; max: number }>
   const ranges: Array<{ min: number; max: number }> = [];
   
   // Start with single day ranges for first few days
-  for (let i = 0; i < Math.min(maxDays, 10); i+=5) {
-    ranges.push({ min: i, max: i + 5 });
+  const shortRangeSize = 3;
+  for (let i = 0; i < Math.min(maxDays, 10); i+=shortRangeSize) {
+    ranges.push({ min: i, max: i + shortRangeSize });
   }
   
   // Add broader ranges for higher values if needed
   if (maxDays > 10) {
     let current = 10;
     while (current < maxDays) {
-      const rangeSize = current < 20 ? 2 : 5; // 2-day ranges up to 20, then 5-day ranges
+      const rangeSize = 5;
       ranges.push({ min: current, max: Math.min(current + rangeSize, maxDays + 1) });
       current += rangeSize;
     }
@@ -300,4 +324,58 @@ function filterIssuesByType(issues: readonly any[], issueTypesFilter: string[]):
     
     return issueTypesFilter.includes(issue.issueType.name);
   });
+}
+
+/**
+ * Creates Jira issue URL
+ * Following Clean Code: Single responsibility, pure function
+ */
+function createJiraIssueUrl(issueKey: string): string {
+  try {
+    const config = createJiraConfig();
+    return `${config.baseUrl}/browse/${issueKey}`;
+  } catch (error) {
+    // Fallback if config is not available
+    console.warn('Could not create Jira URL, config not available:', error);
+    return `#${issueKey}`;
+  }
+}
+
+/**
+ * Creates issue details from completed issues and their cycle time results
+ * Following Clean Code: Single responsibility, pure function
+ */
+function createIssueDetails(
+  completedResults: readonly IssueCycleTimeResult[],
+  allIssues: readonly JiraIssue[]
+): readonly IssueDetail[] {
+  // Create a map for fast issue lookup
+  const issueMap = new Map(allIssues.map(issue => [issue.key, issue]));
+  
+  return completedResults
+    .filter(result => result.cycleTime !== null) // Only completed issues
+    .map(result => {
+      const issue = issueMap.get(result.issueKey);
+      if (!issue) {
+        console.warn(`Issue ${result.issueKey} not found in issues list`);
+        return null;
+      }
+      
+      return {
+        key: issue.key,
+        summary: issue.summary,
+        issueType: {
+          name: issue.issueType.name,
+          iconUrl: issue.issueType.iconUrl
+        },
+        status: {
+          name: issue.status.name,
+          statusCategory: issue.status.statusCategory
+        },
+        jiraUrl: createJiraIssueUrl(issue.key),
+        cycleTimeDays: result.cycleTime!.durationDays
+      } as IssueDetail;
+    })
+    .filter((detail): detail is IssueDetail => detail !== null)
+    .sort((a, b) => a.key.localeCompare(b.key)); // Sort by issue key
 }

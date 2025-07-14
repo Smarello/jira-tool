@@ -97,6 +97,7 @@ const createMockMcpClient = (
   getProjectBoards: jest.fn(),
   getBoardSprints: jest.fn(),
   getBoardInfo: jest.fn(),
+  getBoardIssues: jest.fn(),
   getSprintDetails: jest.fn(),
   getSprintIssues: jest.fn()
 });
@@ -215,8 +216,10 @@ describe('calculateIssueCycleTime', () => {
 
 describe('calculateIssuesCycleTime', () => {
   const boardId = 'BOARD-456';
+  const toDoStatusIds = ['10001']; // To Do statuses
+  const doneStatusIds = ['10003']; // Done statuses
 
-  test('should calculate cycle time for multiple issues with single API call', async () => {
+  test('should calculate cycle time for multiple issues with provided status configuration', async () => {
     // Arrange
     const issues = [
       createMockIssue('TEST-201'),
@@ -239,10 +242,10 @@ describe('calculateIssuesCycleTime', () => {
       })]
     ]);
 
-    const mcpClient = createMockMcpClient(['10001'], ['10003'], changelogMap);
+    const mcpClient = createMockMcpClient(toDoStatusIds, doneStatusIds, changelogMap);
 
     // Act
-    const results = await calculateIssuesCycleTime(issues, boardId, mcpClient);
+    const results = await calculateIssuesCycleTime(issues, boardId, toDoStatusIds, doneStatusIds, mcpClient);
 
     // Assert
     expect(results).toHaveLength(3);
@@ -259,32 +262,31 @@ describe('calculateIssuesCycleTime', () => {
     expect(results[2].issueKey).toBe('TEST-203');
     expect(results[2].cycleTime).toBeNull();
 
-    // Verify API calls were optimized (called once per status type)
-    expect(mcpClient.getBoardToDoStatusIds).toHaveBeenCalledTimes(1);
-    expect(mcpClient.getBoardDoneStatusIds).toHaveBeenCalledTimes(1);
+    // Verify NO API calls for board status configuration (status IDs provided directly)
+    expect(mcpClient.getBoardToDoStatusIds).not.toHaveBeenCalled();
+    expect(mcpClient.getBoardDoneStatusIds).not.toHaveBeenCalled();
   });
 
-  test('should handle board status fetch failure gracefully', async () => {
+  test('should handle empty status arrays gracefully', async () => {
     // Arrange
     const issues = [createMockIssue('TEST-301')];
-    const mcpClient: McpAtlassianClient = {
-      getBoardToDoStatusIds: jest.fn().mockResolvedValue({ success: false }),
-      getBoardDoneStatusIds: jest.fn().mockResolvedValue({ success: false }),
-      getIssueChangelog: jest.fn(),
-      getProjectBoards: jest.fn(),
-      getBoardSprints: jest.fn(),
-      getBoardInfo: jest.fn(),
-      getSprintDetails: jest.fn(),
-      getSprintIssues: jest.fn()
-    };
+    const emptyToDoStatusIds: string[] = [];
+    const emptyDoneStatusIds: string[] = [];
+    const changelogMap = new Map([
+      ['TEST-301', createMockChangelog('TEST-301', {
+        '10001': '2024-01-02T10:00:00.000Z',
+        '10003': '2024-01-04T15:00:00.000Z'
+      })]
+    ]);
+    const mcpClient = createMockMcpClient(emptyToDoStatusIds, emptyDoneStatusIds, changelogMap);
 
     // Act
-    const results = await calculateIssuesCycleTime(issues, boardId, mcpClient);
+    const results = await calculateIssuesCycleTime(issues, boardId, emptyToDoStatusIds, emptyDoneStatusIds, mcpClient);
 
     // Assert
     expect(results).toHaveLength(1);
     expect(results[0].issueKey).toBe('TEST-301');
-    expect(results[0].cycleTime).toBeNull();
+    expect(results[0].cycleTime).toBeNull(); // No matching status IDs = no cycle time
   });
 });
 

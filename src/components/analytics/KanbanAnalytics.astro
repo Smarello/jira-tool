@@ -268,6 +268,65 @@ const { boardId, loading = false } = Astro.props;
     </div>
   </div>
   
+  <!-- Issues Details Section -->
+  <div class="issues-details-section mt-8">
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">
+        Issues Used for Percentile Calculation
+      </h3>
+      
+      <div id="issues-details-content" class="hidden">
+        <!-- Summary Info -->
+        <div class="mb-4 p-4 bg-blue-50 rounded-lg">
+          <div class="flex items-center text-sm text-blue-800">
+            <div class="text-blue-500 mr-2">📊</div>
+            <span>Showing <span id="issues-count" class="font-medium">0</span> completed issues used for cycle time percentiles calculation</span>
+          </div>
+        </div>
+        
+        <!-- Issues Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse bg-white">
+            <thead>
+              <tr class="bg-gray-50">
+                <th class="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">
+                  Type
+                </th>
+                <th class="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">
+                  Issue Key
+                </th>
+                <th class="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">
+                  Summary
+                </th>
+                <th class="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">
+                  Status
+                </th>
+                <th class="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">
+                  Cycle Time
+                </th>
+              </tr>
+            </thead>
+            <tbody id="issues-details-table-body">
+              <!-- Table rows will be populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Empty State -->
+        <div id="issues-details-empty" class="hidden text-center py-8">
+          <div class="text-4xl mb-2">📋</div>
+          <p class="text-gray-600">No completed issues found for the selected filters.</p>
+        </div>
+      </div>
+      
+      <!-- Placeholder when no board selected -->
+      <div id="issues-details-placeholder" class="text-center py-8">
+        <div class="text-4xl mb-2">📝</div>
+        <p class="text-gray-600">Select a board and apply filters to see the issues used for cycle time calculations.</p>
+      </div>
+    </div>
+  </div>
+
   <!-- Loading overlay for dynamic updates -->
   <div id="kanban-loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
     <div id="kanban-progress-loader-container">
@@ -363,6 +422,24 @@ const { boardId, loading = false } = Astro.props;
         confidenceLevel: number;
       };
     };
+    issuesDetails: Array<{
+      key: string;
+      summary: string;
+      issueType: {
+        name: string;
+        iconUrl: string;
+      };
+      status: {
+        name: string;
+        statusCategory: {
+          id: number;
+          name: 'To Do' | 'In Progress' | 'Done';
+          colorName: string;
+        };
+      };
+      jiraUrl: string;
+      cycleTimeDays?: number;
+    }>;
     calculatedAt: string;
   }
   
@@ -460,6 +537,9 @@ const { boardId, loading = false } = Astro.props;
       displayProbabilityTable(data.cycleTimeProbability, chartContainer);
     }
     
+    // Display issues details table
+    displayIssuesDetails(data.issuesDetails);
+    
     console.log('[KanbanAnalytics] Cycle time data displayed successfully');
   }
   
@@ -524,6 +604,95 @@ const { boardId, loading = false } = Astro.props;
   }
   
   /**
+   * Displays issues details table
+   * Following Clean Code: Single responsibility, clear data flow
+   */
+  function displayIssuesDetails(issuesDetails: KanbanAnalyticsData['issuesDetails']) {
+    console.log('[KanbanAnalytics] Displaying issues details table');
+    
+    // Find containers
+    const contentContainer = document.querySelector('#issues-details-content');
+    const placeholderContainer = document.querySelector('#issues-details-placeholder');
+    const emptyContainer = document.querySelector('#issues-details-empty');
+    const tableBody = document.querySelector('#issues-details-table-body');
+    const issuesCount = document.querySelector('#issues-count');
+    
+    if (!contentContainer || !placeholderContainer || !emptyContainer || !tableBody || !issuesCount) {
+      console.error('[KanbanAnalytics] Issues details containers not found');
+      return;
+    }
+    
+    // Hide placeholder
+    placeholderContainer.classList.add('hidden');
+    
+    if (issuesDetails.length === 0) {
+      // Show empty state
+      contentContainer.classList.add('hidden');
+      emptyContainer.classList.remove('hidden');
+      return;
+    }
+    
+    // Show content and update count
+    contentContainer.classList.remove('hidden');
+    emptyContainer.classList.add('hidden');
+    issuesCount.textContent = issuesDetails.length.toString();
+    
+    // Clear existing table rows
+    tableBody.innerHTML = '';
+    
+    // Populate table rows
+    issuesDetails.forEach(issue => {
+      const row = document.createElement('tr');
+      row.className = 'hover:bg-gray-50';
+      
+      // Get status category color
+      const getStatusCategoryColor = (categoryName: string) => {
+        switch (categoryName) {
+          case 'To Do': return 'bg-gray-100 text-gray-800';
+          case 'In Progress': return 'bg-blue-100 text-blue-800';
+          case 'Done': return 'bg-green-100 text-green-800';
+          default: return 'bg-gray-100 text-gray-800';
+        }
+      };
+      
+      const statusColorClass = getStatusCategoryColor(issue.status.statusCategory.name);
+      const cycleTimeDisplay = issue.cycleTimeDays ? `${issue.cycleTimeDays.toFixed(1)} days` : '-';
+      
+      row.innerHTML = `
+        <td class="border border-gray-200 px-4 py-3">
+          <div class="flex items-center">
+            <img src="${issue.issueType.iconUrl}" alt="${issue.issueType.name}" class="w-4 h-4 mr-2" />
+            <span class="text-sm font-medium text-gray-900">${issue.issueType.name}</span>
+          </div>
+        </td>
+        <td class="border border-gray-200 px-4 py-3">
+          <a href="${issue.jiraUrl}" target="_blank" rel="noopener noreferrer" 
+             class="text-blue-600 hover:text-blue-800 font-medium text-sm hover:underline">
+            ${issue.key}
+          </a>
+        </td>
+        <td class="border border-gray-200 px-4 py-3">
+          <div class="text-sm text-gray-900 max-w-md truncate" title="${issue.summary}">
+            ${issue.summary}
+          </div>
+        </td>
+        <td class="border border-gray-200 px-4 py-3">
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColorClass}">
+            ${issue.status.name}
+          </span>
+        </td>
+        <td class="border border-gray-200 px-4 py-3">
+          <span class="text-sm font-medium text-gray-900">${cycleTimeDisplay}</span>
+        </td>
+      `;
+      
+      tableBody.appendChild(row);
+    });
+    
+    console.log(`[KanbanAnalytics] Issues details table populated with ${issuesDetails.length} issues`);
+  }
+
+  /**
    * Shows error state
    * Following Clean Code: Express intent, consistent error handling
    */
@@ -563,6 +732,9 @@ const { boardId, loading = false } = Astro.props;
         </div>
       `;
     }
+    
+    // Hide issues details table on error
+    hideIssuesDetails();
   }
   
   /**
@@ -812,4 +984,18 @@ const { boardId, loading = false } = Astro.props;
   (window as any).kanbanLoader = {
     cancel: cancelLoading
   };
+  
+  /**
+   * Hides issues details table
+   * Following Clean Code: Single responsibility
+   */
+  function hideIssuesDetails() {
+    const contentContainer = document.querySelector('#issues-details-content');
+    const placeholderContainer = document.querySelector('#issues-details-placeholder');
+    const emptyContainer = document.querySelector('#issues-details-empty');
+    
+    if (contentContainer) contentContainer.classList.add('hidden');
+    if (emptyContainer) emptyContainer.classList.add('hidden');
+    if (placeholderContainer) placeholderContainer.classList.remove('hidden');
+  }
 </script>
