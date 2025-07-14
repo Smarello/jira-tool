@@ -83,28 +83,28 @@ const { boardId, loading = false } = Astro.props;
             <div id="cycle-time-data" class="hidden">
               <!-- Cycle Time Percentiles -->
               <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <div class="text-center p-4 bg-blue-50 rounded-lg cursor-help" 
-                     title="50% of issues are completed within this time">
-                  <div class="text-2xl font-bold text-blue-600" id="p50-value">-</div>
-                  <div class="text-sm text-blue-800">50th percentile</div>
-                  <div class="text-xs text-gray-600">days</div>
-                </div>
-                <div class="text-center p-4 bg-indigo-50 rounded-lg cursor-help" 
-                     title="75% of issues are completed within this time">
-                  <div class="text-2xl font-bold text-indigo-600" id="p75-value">-</div>
-                  <div class="text-sm text-indigo-800">75th percentile</div>
-                  <div class="text-xs text-gray-600">days</div>
-                </div>
-                <div class="text-center p-4 bg-purple-50 rounded-lg cursor-help" 
-                     title="85% of issues are completed within this time">
-                  <div class="text-2xl font-bold text-purple-600" id="p85-value">-</div>
-                  <div class="text-sm text-purple-800">85th percentile</div>
-                  <div class="text-xs text-gray-600">days</div>
-                </div>
                 <div class="text-center p-4 bg-red-50 rounded-lg cursor-help" 
-                     title="95% of issues are completed within this time">
-                  <div class="text-2xl font-bold text-red-600" id="p95-value">-</div>
-                  <div class="text-sm text-red-800">95th percentile</div>
+                     title="50% of issues are completed within this time - Fastest performance">
+                  <div class="text-2xl font-bold text-red-600" id="p50-value">-</div>
+                  <div class="text-sm text-red-800">50th percentile</div>
+                  <div class="text-xs text-gray-600">days</div>
+                </div>
+                <div class="text-center p-4 bg-yellow-50 rounded-lg cursor-help" 
+                     title="75% of issues are completed within this time">
+                  <div class="text-2xl font-bold text-yellow-600" id="p75-value">-</div>
+                  <div class="text-sm text-yellow-800">75th percentile</div>
+                  <div class="text-xs text-gray-600">days</div>
+                </div>
+                <div class="text-center p-4 bg-green-50 rounded-lg cursor-help" 
+                     title="85% of issues are completed within this time">
+                  <div class="text-2xl font-bold text-green-600" id="p85-value">-</div>
+                  <div class="text-sm text-green-800">85th percentile</div>
+                  <div class="text-xs text-gray-600">days</div>
+                </div>
+                <div class="text-center p-4 bg-green-100 rounded-lg cursor-help" 
+                     title="95% of issues are completed within this time - Slowest performance">
+                  <div class="text-2xl font-bold text-green-800" id="p95-value">-</div>
+                  <div class="text-sm text-green-900">95th percentile</div>
                   <div class="text-xs text-gray-600">days</div>
                 </div>
               </div>
@@ -138,13 +138,13 @@ const { boardId, loading = false } = Astro.props;
                   <table class="w-full border-collapse bg-white probability-table">
                     <thead>
                       <tr class="bg-gray-50">
-                        <th class="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">
+                        <th class="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900 w-20">
                           Days
                         </th>
-                        <th class="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">
+                        <th class="border border-gray-200 px-3 py-3 text-left text-sm font-medium text-gray-900 w-30">
                           Probability that a story is going to take this long
                         </th>
-                        <th class="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900">
+                        <th class="border border-gray-200 px-3 py-3 text-left text-sm font-medium text-gray-900 w-30">
                           Confidence that a story will take this long or less
                         </th>
                       </tr>
@@ -573,13 +573,13 @@ const { boardId, loading = false } = Astro.props;
       }
       
       row.innerHTML = `
-        <td class="border border-gray-200 px-4 py-3 text-sm font-medium text-gray-900">
+        <td class="border border-gray-200 px-4 py-3 text-sm font-medium text-gray-900 w-20">
           ${range.range}
         </td>
-        <td class="border border-gray-200 px-4 py-3 text-sm text-gray-700">
+        <td class="border border-gray-200 px-3 py-3 text-sm text-gray-700 w-30">
           ${range.probability}%
         </td>
-        <td class="border border-gray-200 px-4 py-3 text-sm confidence-cell transition-all duration-300 ${confidenceClasses}">
+        <td class="border border-gray-200 px-3 py-3 text-sm confidence-cell transition-all duration-300 ${confidenceClasses} w-30">
           ${range.confidence}%
         </td>
       `;
