@@ -12,7 +12,8 @@ import { createJiraConfig } from '../jira/config.js';
 import { getBoardStatusConfiguration } from '../jira/board-config.js';
 import { 
   calculateIssuesCycleTime, 
-  filterCompletedIssues, 
+  filterCompletedIssues,
+  filterCompletedCycleTimeResults,
   extractCycleTimes, 
   calculateMultiplePercentiles,
   type IssueCycleTimeResult
@@ -63,20 +64,24 @@ export async function calculateKanbanAnalytics(
       return createEmptyAnalyticsResult(boardId, calculatedAt);
     }
 
-    // Calculate cycle times for filtered issues with board configuration
+    // First, filter completed issues (those in Done status)
+    const completedIssues = filterCompletedIssues(filteredIssues, boardConfig.doneStatusIds);
+    console.log(`[KanbanAnalyticsService] Found ${completedIssues.length} completed issues out of ${filteredIssues.length} filtered`);
+
+    // Calculate cycle times only for completed issues
     const cycleTimeResults = await calculateIssuesCycleTime(
-      filteredIssues, 
+      completedIssues, 
       boardId, 
       boardConfig.toDoStatusIds, 
       boardConfig.doneStatusIds, 
       mcpClient
     );
     
-    // Filter completed issues and extract cycle times
-    const completedResults = filterCompletedIssues(cycleTimeResults);
+    // Filter results with valid cycle times and extract cycle times
+    const completedResults = filterCompletedCycleTimeResults(cycleTimeResults);
     const cycleTimes = extractCycleTimes(completedResults);
 
-    console.log(`[KanbanAnalyticsService] Found ${completedResults.length} completed issues out of ${allIssues.length} total`);
+    console.log(`[KanbanAnalyticsService] Found ${completedResults.length} issues with valid cycle times out of ${completedIssues.length} completed issues`);
 
     // Calculate percentiles if we have completed issues
     let percentiles: CycleTimePercentiles;
@@ -95,12 +100,12 @@ export async function calculateKanbanAnalytics(
     }
 
     // Create issue details for the analytics result
-    const issuesDetails = createIssueDetails(completedResults, filteredIssues);
+    const issuesDetails = createIssueDetails(completedResults, completedIssues);
 
     const result: KanbanAnalyticsResult = {
       boardId,
       totalIssues: allIssues.length,
-      completedIssues: completedResults.length,
+      completedIssues: completedIssues.length,
       cycleTimePercentiles: percentiles,
       cycleTimeProbability: calculateProbabilityDistribution(cycleTimes),
       issuesDetails,
@@ -110,6 +115,7 @@ export async function calculateKanbanAnalytics(
     console.log(`[KanbanAnalyticsService] Analytics calculation completed for board ${boardId}:`);
     console.log(`  - Total issues: ${result.totalIssues}`);
     console.log(`  - Completed issues: ${result.completedIssues}`);
+    console.log(`  - Issues with valid cycle times: ${completedResults.length}`);
     console.log(`  - P50: ${percentiles.p50.toFixed(1)}h`);
     console.log(`  - P95: ${percentiles.p95.toFixed(1)}h`);
 

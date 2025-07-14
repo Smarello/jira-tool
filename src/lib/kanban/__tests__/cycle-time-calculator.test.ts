@@ -8,6 +8,7 @@ import {
   calculateIssueCycleTime,
   calculateIssuesCycleTime,
   filterCompletedIssues,
+  filterCompletedCycleTimeResults,
   extractCycleTimes,
   calculateCycleTimePercentile,
   calculateMultiplePercentiles
@@ -21,19 +22,22 @@ import type { IssueChangelog } from '../../jira/changelog-api.js';
 // Test fixtures
 const createMockIssue = (
   key: string,
-  created: string = '2024-01-01T09:00:00.000Z'
+  created: string = '2024-01-01T09:00:00.000Z',
+  statusId: string = '10003',
+  statusName: string = 'Done',
+  statusCategory: 'To Do' | 'In Progress' | 'Done' = 'Done'
 ): JiraIssue => ({
   id: key.replace('-', ''),
   key,
   summary: `Test Issue ${key}`,
   description: `Description for ${key}`,
   status: {
-    id: '10003',
-    name: 'Done',
+    id: statusId,
+    name: statusName,
     statusCategory: {
-      id: 3,
-      name: 'Done',
-      colorName: 'green'
+      id: statusCategory === 'To Do' ? 1 : statusCategory === 'In Progress' ? 2 : 3,
+      name: statusCategory,
+      colorName: statusCategory === 'To Do' ? 'blue-gray' : statusCategory === 'In Progress' ? 'yellow' : 'green'
     }
   },
   priority: {
@@ -291,44 +295,72 @@ describe('calculateIssuesCycleTime', () => {
 });
 
 describe('filterCompletedIssues', () => {
-  test('should filter only issues with cycle time data', () => {
+  test('should filter issues by doneStatusIds', () => {
     // Arrange
-    const mockCycleTime: CycleTime = {
-      startDate: '2024-01-01T10:00:00.000Z',
-      endDate: '2024-01-05T15:00:00.000Z',
-      durationDays: 4.2,
-      durationHours: 101,
-      isEstimated: false,
-      calculationMethod: 'board_entry'
-    };
-
-    const results = [
-      createCycleTimeResult('TEST-401', 'BOARD-1', mockCycleTime),
-      createCycleTimeResult('TEST-402', 'BOARD-1', null), // Incomplete
-      createCycleTimeResult('TEST-403', 'BOARD-1', mockCycleTime)
+    const doneStatusIds = ['10003', '10004']; // Done, Closed
+    const issues = [
+      createMockIssue('TEST-401', '2024-01-01T09:00:00.000Z', '10003', 'Done', 'Done'),
+      createMockIssue('TEST-402', '2024-01-01T09:00:00.000Z', '10001', 'To Do', 'To Do'),
+      createMockIssue('TEST-403', '2024-01-01T09:00:00.000Z', '10004', 'Closed', 'Done'),
+      createMockIssue('TEST-404', '2024-01-01T09:00:00.000Z', '10002', 'In Progress', 'In Progress')
     ];
 
     // Act
-    const completedResults = filterCompletedIssues(results);
+    const completedIssues = filterCompletedIssues(issues, doneStatusIds);
 
     // Assert
-    expect(completedResults).toHaveLength(2);
-    expect(completedResults[0].issueKey).toBe('TEST-401');
-    expect(completedResults[1].issueKey).toBe('TEST-403');
+    expect(completedIssues).toHaveLength(2);
+    expect(completedIssues[0].key).toBe('TEST-401');
+    expect(completedIssues[1].key).toBe('TEST-403');
+  });
+
+  test('should filter issues by statusCategory Done', () => {
+    // Arrange
+    const doneStatusIds = ['10003']; // Only one specific done status
+    const issues = [
+      createMockIssue('TEST-501', '2024-01-01T09:00:00.000Z', '10005', 'Resolved', 'Done'), // Not in doneStatusIds but Done category
+      createMockIssue('TEST-502', '2024-01-01T09:00:00.000Z', '10001', 'To Do', 'To Do'),
+      createMockIssue('TEST-503', '2024-01-01T09:00:00.000Z', '10003', 'Done', 'Done') // In doneStatusIds
+    ];
+
+    // Act
+    const completedIssues = filterCompletedIssues(issues, doneStatusIds);
+
+    // Assert
+    expect(completedIssues).toHaveLength(2);
+    expect(completedIssues[0].key).toBe('TEST-501'); // Included by statusCategory
+    expect(completedIssues[1].key).toBe('TEST-503'); // Included by doneStatusIds
   });
 
   test('should return empty array when no issues completed', () => {
     // Arrange
-    const results = [
-      createCycleTimeResult('TEST-501', 'BOARD-1', null),
-      createCycleTimeResult('TEST-502', 'BOARD-1', null)
+    const doneStatusIds = ['10003', '10004'];
+    const issues = [
+      createMockIssue('TEST-601', '2024-01-01T09:00:00.000Z', '10001', 'To Do', 'To Do'),
+      createMockIssue('TEST-602', '2024-01-01T09:00:00.000Z', '10002', 'In Progress', 'In Progress')
     ];
 
     // Act
-    const completedResults = filterCompletedIssues(results);
+    const completedIssues = filterCompletedIssues(issues, doneStatusIds);
 
     // Assert
-    expect(completedResults).toHaveLength(0);
+    expect(completedIssues).toHaveLength(0);
+  });
+
+  test('should handle empty doneStatusIds and rely on statusCategory', () => {
+    // Arrange
+    const doneStatusIds: string[] = [];
+    const issues = [
+      createMockIssue('TEST-701', '2024-01-01T09:00:00.000Z', '10005', 'Resolved', 'Done'),
+      createMockIssue('TEST-702', '2024-01-01T09:00:00.000Z', '10001', 'To Do', 'To Do')
+    ];
+
+    // Act
+    const completedIssues = filterCompletedIssues(issues, doneStatusIds);
+
+    // Assert
+    expect(completedIssues).toHaveLength(1);
+    expect(completedIssues[0].key).toBe('TEST-701');
   });
 });
 
@@ -607,5 +639,47 @@ describe('calculateMultiplePercentiles', () => {
     // Practical assertions for agile planning
     expect(result[50]).toBeLessThan(result[95]); // Median should be significantly less than P95
     expect(result[95] / result[50]).toBeGreaterThan(1.5); // P95 should be at least 50% higher than median
+  });
+});
+
+describe('filterCompletedCycleTimeResults', () => {
+  test('should filter only results with cycle time data', () => {
+    // Arrange
+    const mockCycleTime: CycleTime = {
+      startDate: '2024-01-01T10:00:00.000Z',
+      endDate: '2024-01-05T15:00:00.000Z',
+      durationDays: 4.2,
+      durationHours: 101,
+      isEstimated: false,
+      calculationMethod: 'board_entry'
+    };
+
+    const results = [
+      createCycleTimeResult('TEST-401', 'BOARD-1', mockCycleTime),
+      createCycleTimeResult('TEST-402', 'BOARD-1', null), // Incomplete
+      createCycleTimeResult('TEST-403', 'BOARD-1', mockCycleTime)
+    ];
+
+    // Act
+    const completedResults = filterCompletedCycleTimeResults(results);
+
+    // Assert
+    expect(completedResults).toHaveLength(2);
+    expect(completedResults[0].issueKey).toBe('TEST-401');
+    expect(completedResults[1].issueKey).toBe('TEST-403');
+  });
+
+  test('should return empty array when no results completed', () => {
+    // Arrange
+    const results = [
+      createCycleTimeResult('TEST-501', 'BOARD-1', null),
+      createCycleTimeResult('TEST-502', 'BOARD-1', null)
+    ];
+
+    // Act
+    const completedResults = filterCompletedCycleTimeResults(results);
+
+    // Assert
+    expect(completedResults).toHaveLength(0);
   });
 });

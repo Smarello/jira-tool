@@ -142,10 +142,29 @@ export async function calculateIssuesCycleTime(
 }
 
 /**
- * Filters issues that have completed cycle time (reached Done status)
+ * Filters issues that are completed (in Done status or doneStatusIds)
  * Following Clean Code: Express intent, immutability
  */
 export function filterCompletedIssues(
+  issues: readonly JiraIssue[],
+  doneStatusIds: readonly string[]
+): readonly JiraIssue[] {
+  return issues.filter(issue => {
+    // Check if issue status ID is in doneStatusIds
+    if (doneStatusIds.includes(issue.status.id)) {
+      return true;
+    }
+    
+    // Check if issue status category is "Done"
+    return issue.status.statusCategory.name === 'Done';
+  });
+}
+
+/**
+ * Filters cycle time results that have completed cycle time (reached Done status)
+ * Following Clean Code: Express intent, immutability
+ */
+export function filterCompletedCycleTimeResults(
   results: readonly IssueCycleTimeResult[]
 ): readonly IssueCycleTimeResult[] {
   return results.filter(result => result.cycleTime !== null);
