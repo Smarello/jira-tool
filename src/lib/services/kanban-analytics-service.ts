@@ -191,6 +191,20 @@ function calculateProbabilityDistribution(cycleTimes: readonly number[]): CycleT
     };
   });
   
+  // Validate no overlapping ranges and correct total count
+  const totalCountInRanges = rangeData.reduce((sum, range) => sum + range.count, 0);
+  if (totalCountInRanges !== cycleTimes.length) {
+    console.warn(`[KanbanAnalyticsService] Range count mismatch: ${totalCountInRanges} in ranges vs ${cycleTimes.length} total issues`);
+    console.warn(`[KanbanAnalyticsService] Ranges:`, dayRanges.map(r => `${r.min}-${r.max}`));
+    
+    // Log individual issue distributions for debugging
+    rangeData.forEach(range => {
+      if (range.count > 0) {
+        console.warn(`  Range ${range.range}: ${range.count} issues`);
+      }
+    });
+  }
+  
   // Calculate cumulative confidence levels
   let cumulativeCount = 0;
   rangeData.forEach(range => {
@@ -222,25 +236,38 @@ function calculateProbabilityDistribution(cycleTimes: readonly number[]): CycleT
 /**
  * Generates dynamic day ranges based on data distribution
  * Following Clean Code: Pure function, clear algorithm
+ * Fixed: Ensures non-overlapping ranges to avoid double counting
  */
 function generateDayRanges(maxDays: number): Array<{ min: number; max: number }> {
   const ranges: Array<{ min: number; max: number }> = [];
   
-  // Start with single day ranges for first few days
-  const shortRangeSize = 3;
-  for (let i = 0; i < Math.min(maxDays, 10); i+=shortRangeSize) {
-    ranges.push({ min: i, max: i + shortRangeSize });
+  let currentMin = 0;
+  // Start with smaller ranges for the first 15 days (more granular)
+  while (currentMin < Math.min(maxDays, 10)) {
+    const rangeSize = 3;
+    const currentMax = currentMin + rangeSize;
+    
+    ranges.push({ 
+      min: currentMin, 
+      max: Math.min(currentMax, maxDays + 1) 
+    });
+    
+    currentMin = currentMax; // No overlap: next range starts where previous ends
   }
   
   // Add broader ranges for higher values if needed
-  if (maxDays > 10) {
-    let current = 10;
-    while (current < maxDays) {
-      const rangeSize = 5;
-      ranges.push({ min: current, max: Math.min(current + rangeSize, maxDays + 1) });
-      current += rangeSize;
-    }
+  while (currentMin < maxDays) {
+    const rangeSize = currentMin < 30 ? 5 : 10; // 5-day ranges up to 30, then 10-day ranges
+    const currentMax = currentMin + rangeSize;
+    
+    ranges.push({ 
+      min: currentMin, 
+      max: Math.min(currentMax, maxDays + 1) 
+    });
+    
+    currentMin = currentMax; // No overlap: next range starts where previous ends
   }
+  
   return ranges;
 }
 

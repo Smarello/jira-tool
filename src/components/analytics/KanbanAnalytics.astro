@@ -141,11 +141,14 @@ const { boardId, loading = false } = Astro.props;
                         <th class="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-900 w-20">
                           Days
                         </th>
-                        <th class="border border-gray-200 px-3 py-3 text-left text-sm font-medium text-gray-900 w-30">
-                          Probability that a story is going to take this long
+                        <th class="border border-gray-200 px-3 py-3 text-left text-sm font-medium text-gray-900 w-20">
+                          Issues Count
                         </th>
                         <th class="border border-gray-200 px-3 py-3 text-left text-sm font-medium text-gray-900 w-30">
-                          Confidence that a story will take this long or less
+                          Probability that an issue is going to take this long
+                        </th>
+                        <th class="border border-gray-200 px-3 py-3 text-left text-sm font-medium text-gray-900 w-30">
+                          Confidence that an issue will take this long or less
                         </th>
                       </tr>
                     </thead>
@@ -575,6 +578,9 @@ const { boardId, loading = false } = Astro.props;
       row.innerHTML = `
         <td class="border border-gray-200 px-4 py-3 text-sm font-medium text-gray-900 w-20">
           ${range.range}
+        </td>
+        <td class="border border-gray-200 px-3 py-3 text-sm text-gray-700 w-20 text-center">
+          ${range.count}
         </td>
         <td class="border border-gray-200 px-3 py-3 text-sm text-gray-700 w-30">
           ${range.probability}%
