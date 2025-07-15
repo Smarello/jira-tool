@@ -8,6 +8,7 @@ import type { JiraSprint } from '../jira/boards';
 import type { McpAtlassianClient } from '../mcp/atlassian';
 import type { AdvancedValidationResult } from './advanced-validator';
 import { getDoneStatusIdsForBoard } from './board-cache';
+import { filterNonSubTasks } from './calculator';
 
 /**
  * Sprint validation context - contains pre-fetched board configuration
@@ -201,6 +202,10 @@ export async function batchValidateSprintVelocity(
     for (const { sprint, issues } of boardSprints) {
       currentSprintIndex++;
       
+      // Filter out sub-tasks for Scrum board velocity calculation
+      // Following Clean Code: Express intent, separate concerns
+      const nonSubTaskIssues = filterNonSubTasks(issues);
+      
       // Report progress for the current sprint being validated
       if (progressCallback) {
         const globalSprintIndex = sprintIssuesPairs.findIndex(pair => pair.sprint.id === sprint.id) + 1;
@@ -211,7 +216,7 @@ export async function batchValidateSprintVelocity(
       
       // Pass a more detailed progress callback for issue-level tracking
       const issueValidations = await validateIssuesWithContext(
-        issues, 
+        nonSubTaskIssues, 
         sprintContext, 
         mcpClient,
         (currentIssue: number, totalIssues: number, _issueKey: string) => {
@@ -227,15 +232,15 @@ export async function batchValidateSprintVelocity(
       );
       
       const validIssues = issueValidations.filter(r => r.isValidForVelocity).length;
-      const totalPoints = issues.reduce((sum, issue) => sum + (issue.storyPoints || 0), 0);
-      const validPoints = issues
+      const totalPoints = nonSubTaskIssues.reduce((sum, issue) => sum + (issue.storyPoints || 0), 0);
+      const validPoints = nonSubTaskIssues
         .filter((_, index) => issueValidations[index]?.isValidForVelocity)
         .reduce((sum, issue) => sum + (issue.storyPoints || 0), 0);
       
       results.push({
         sprintId: sprint.id,
         issueValidations,
-        totalIssues: issues.length,
+        totalIssues: nonSubTaskIssues.length,
         validIssues,
         totalPoints,
         validPoints

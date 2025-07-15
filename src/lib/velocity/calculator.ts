@@ -422,17 +422,22 @@ export async function calculateSprintStoryPoints(
   }
   
   const issues = issuesResponse.data;
-  const committed = sumStoryPoints(issues);
   
-  // Use advanced validation with Done column checking
+  // Filter out sub-tasks for Scrum board velocity calculation
+  // Following Clean Code: Express intent, separate concerns
+  const nonSubTaskIssues = filterNonSubTasks(issues);
+  
+  const committed = sumStoryPoints(nonSubTaskIssues);
+  
+  // Use advanced validation with Done column checking (exclude sub-tasks)
   const validationResults = await validateIssuesForVelocity(
-    issues, 
+    nonSubTaskIssues, 
     sprint, 
     boardId, 
     mcpClient
   );
   
-  const completed = calculateValidatedStoryPoints(issues, validationResults);
+  const completed = calculateValidatedStoryPoints(nonSubTaskIssues, validationResults);
   const completedIssueCount = validationResults.filter(result => 
     result.isValidForVelocity
   ).length;
@@ -440,9 +445,17 @@ export async function calculateSprintStoryPoints(
   return {
     committed,
     completed,
-    issueCount: issues.length,
+    issueCount: nonSubTaskIssues.length,
     completedIssueCount
   };
+}
+
+/**
+ * Filters out sub-task issues from the issues array
+ * Following Clean Code: Single responsibility, express intent
+ */
+export function filterNonSubTasks(issues: readonly JiraIssueWithPoints[]): readonly JiraIssueWithPoints[] {
+  return issues.filter(issue => !issue.issueType.subtask);
 }
 
 /**

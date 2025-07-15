@@ -8,6 +8,7 @@ import type { JiraSprint } from '../jira/boards.js';
 import type { AdvancedValidationResult } from './advanced-validator.js';
 import type { McpAtlassianClient } from '../mcp/atlassian.js';
 import { validateIssuesForVelocity, calculateValidatedStoryPoints } from './advanced-validator.js';
+import { filterNonSubTasks } from './calculator.js';
 
 /**
  * Sprint issue for modal display
@@ -217,11 +218,15 @@ export async function calculateSprintMetrics(
   completedPoints: number;
   completionRate: number;
 }> {
-  const totalIssues = issues.length;
+  // Filter out sub-tasks for Scrum board velocity calculation
+  // Following Clean Code: Express intent, separate concerns
+  const nonSubTaskIssues = filterNonSubTasks(issues);
   
-  // Use the new validation logic
+  const totalIssues = nonSubTaskIssues.length;
+  
+  // Use the new validation logic (exclude sub-tasks)
   const validationResults = await validateIssuesForVelocity(
-    issues, 
+    nonSubTaskIssues, 
     sprint, 
     boardId, 
     mcpClient
@@ -231,11 +236,11 @@ export async function calculateSprintMetrics(
     result.isValidForVelocity
   ).length;
   
-  const totalPoints = issues.reduce((sum, issue) => 
+  const totalPoints = nonSubTaskIssues.reduce((sum, issue) => 
     sum + (issue.storyPoints || 0), 0
   );
   
-  const completedPoints = calculateValidatedStoryPoints(issues, validationResults);
+  const completedPoints = calculateValidatedStoryPoints(nonSubTaskIssues, validationResults);
   
   const completionRate = totalPoints > 0 
     ? Math.round((completedPoints / totalPoints) * 100)

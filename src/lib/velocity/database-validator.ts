@@ -6,6 +6,7 @@
 import type { JiraIssueWithPoints } from '../jira/issues-api';
 import type { JiraSprint } from '../jira/boards';
 import type { AdvancedValidationResult } from './advanced-validator';
+import { filterNonSubTasks } from './calculator';
 
 /**
  * Validates if an issue should be counted for velocity using completion date from database
@@ -104,14 +105,18 @@ export function calculateSprintVelocityWithDatabase(
 } {
   console.log(`[DatabaseValidator] Calculating velocity for sprint ${sprint.name} using database validation`);
   
-  // Calculate total committed points
-  const totalPoints = issues.reduce((sum, issue) => sum + (issue.storyPoints || 0), 0);
+  // Filter out sub-tasks for Scrum board velocity calculation
+  // Following Clean Code: Express intent, separate concerns
+  const nonSubTaskIssues = filterNonSubTasks(issues);
+  
+  // Calculate total committed points (excluding sub-tasks)
+  const totalPoints = nonSubTaskIssues.reduce((sum, issue) => sum + (issue.storyPoints || 0), 0);
   
   // Validate using completion dates (NO API CALLS)
-  const validationResults = validateIssuesWithCompletionDates(issues, sprint);
+  const validationResults = validateIssuesWithCompletionDates(nonSubTaskIssues, sprint);
   
   // Calculate valid points
-  const validPoints = calculateValidatedStoryPointsWithCompletion(issues, validationResults);
+  const validPoints = calculateValidatedStoryPointsWithCompletion(nonSubTaskIssues, validationResults);
   
   console.log(`[DatabaseValidator] Sprint ${sprint.name}: ${totalPoints} total points, ${validPoints} valid points`);
   
