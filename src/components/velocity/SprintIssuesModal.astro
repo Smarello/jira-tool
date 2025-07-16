@@ -99,6 +99,9 @@ const { sprint, isOpen = false } = Astro.props;
                 <thead class="bg-gray-50">
                   <tr>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Key
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -157,6 +160,11 @@ const { sprint, isOpen = false } = Astro.props;
       statusCategory: {
         name: string;
       };
+    };
+    issueType: {
+      name: string;
+      iconUrl?: string;
+      subtask: boolean;
     };
     storyPoints: number | null;
     updated: string;
@@ -256,6 +264,24 @@ const { sprint, isOpen = false } = Astro.props;
     }
   }
   
+  /**
+   * Gets issue type color based on type name
+   * Following Clean Code: Express intent, consistent mapping
+   */
+  function getIssueTypeColor(issueTypeName: string): string {
+    const typeName = issueTypeName.toLowerCase();
+    
+    if (typeName.includes('story')) return 'bg-green-100 text-green-800';
+    if (typeName.includes('bug')) return 'bg-red-100 text-red-800';
+    if (typeName.includes('task')) return 'bg-blue-100 text-blue-800';
+    if (typeName.includes('epic')) return 'bg-purple-100 text-purple-800';
+    if (typeName.includes('improvement')) return 'bg-yellow-100 text-yellow-800';
+    if (typeName.includes('sub-task') || typeName.includes('subtask')) return 'bg-gray-100 text-gray-800';
+    
+    // Default color for unknown types
+    return 'bg-gray-100 text-gray-800';
+  }
+  
 
   
   /**
@@ -268,6 +294,11 @@ const { sprint, isOpen = false } = Astro.props;
     
     tbody.innerHTML = issues.map(issue => `
       <tr class="hover:bg-gray-50 transition-colors duration-150">
+        <td class="px-6 py-4 whitespace-nowrap">
+          <span class="px-2 py-1 text-xs font-medium rounded-full ${getIssueTypeColor(issue.issueType.name)}">
+            ${issue.issueType.name}
+          </span>
+        </td>
         <td class="px-6 py-4 whitespace-nowrap">
           <div class="flex items-center gap-2">
             <a 
@@ -347,6 +378,11 @@ const { sprint, isOpen = false } = Astro.props;
           </div>
           <span class="px-2 py-1 text-xs font-medium rounded-full ${issue.statusColor}">
             ${issue.status.name}
+          </span>
+        </div>
+        <div class="mb-2">
+          <span class="px-2 py-1 text-xs font-medium rounded-full ${getIssueTypeColor(issue.issueType.name)}">
+            ${issue.issueType.name}
           </span>
         </div>
         <div class="text-sm text-gray-900 mb-2">${issue.summary}</div>

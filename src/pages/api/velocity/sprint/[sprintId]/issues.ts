@@ -7,6 +7,7 @@ import type { APIRoute } from 'astro';
 import { getMcpAtlassianClient } from '../../../../../lib/mcp/atlassian';
 import { transformIssuesForDisplay } from '../../../../../lib/velocity/sprint-issues';
 import { validateIssuesForVelocity, calculateValidatedStoryPoints } from '../../../../../lib/velocity/advanced-validator';
+import { filterNonSubTasks } from '../../../../../lib/velocity/calculator';
 
 export const GET: APIRoute = async ({ params }) => {
   const sprintId = params.sprintId;
@@ -83,32 +84,36 @@ export const GET: APIRoute = async ({ params }) => {
       );
     }
     
-    // Perform advanced validation with Done column checking
+    // Filter out sub-tasks for consistent velocity calculation
+    // Following Clean Code: Express intent, separate concerns  
+    const nonSubTaskIssues = filterNonSubTasks(sprintIssues);
+    
+    // Perform advanced validation with Done column checking (excluding sub-tasks)
     const validationResults = await validateIssuesForVelocity(
-      sprintIssues, 
+      nonSubTaskIssues, 
       sprint, 
       boardId, 
       mcpClient
     );
     
-    // Transform issues for display with validation info
+    // Transform issues for display with validation info (excluding sub-tasks)
     const displayIssues = transformIssuesForDisplay(
-      sprintIssues, 
+      nonSubTaskIssues, 
       sprint, 
       validationResults
     );
     
-    // Calculate sprint metrics using advanced validation
-    const totalIssues = sprintIssues.length;
+    // Calculate sprint metrics using advanced validation (excluding sub-tasks)
+    const totalIssues = nonSubTaskIssues.length;
     const completedIssues = validationResults.filter(result => 
       result.isValidForVelocity
     ).length;
     
-    const totalPoints = sprintIssues.reduce((sum, issue) => 
+    const totalPoints = nonSubTaskIssues.reduce((sum, issue) => 
       sum + (issue.storyPoints || 0), 0
     );
     
-    const completedPoints = calculateValidatedStoryPoints(sprintIssues, validationResults);
+    const completedPoints = calculateValidatedStoryPoints(nonSubTaskIssues, validationResults);
 
     return new Response(
       JSON.stringify({
