@@ -22,6 +22,8 @@ jest.mock('../../jira/board-config.js', () => ({
 
 jest.mock('../../kanban/cycle-time-calculator.js', () => ({
   calculateIssuesCycleTime: jest.fn(),
+  calculateIssuesKeyDates: jest.fn(),
+  calculateIssueCycleTimeFromDates: jest.fn(),
   filterCompletedIssues: jest.fn(),
   filterCompletedCycleTimeResults: jest.fn(),
   extractCycleTimes: jest.fn(),
@@ -31,6 +33,8 @@ jest.mock('../../kanban/cycle-time-calculator.js', () => ({
 import { getBoardStatusConfiguration } from '../../jira/board-config.js';
 import { 
   calculateIssuesCycleTime,
+  calculateIssuesKeyDates,
+  calculateIssueCycleTimeFromDates,
   filterCompletedIssues,
   filterCompletedCycleTimeResults,
   extractCycleTimes,
@@ -139,8 +143,15 @@ describe('calculateKanbanAnalytics', () => {
 
     // Mock function responses
     (getBoardStatusConfiguration as jest.Mock).mockResolvedValue(boardConfig);
-    (filterCompletedIssues as jest.Mock).mockReturnValue(completedIssues);
-    (calculateIssuesCycleTime as jest.Mock).mockResolvedValue(cycleTimeResults);
+    (calculateIssuesKeyDates as jest.Mock).mockResolvedValue([
+      { issueKey: 'TEST-1', boardEntryDate: '2024-01-01T00:00:00.000Z', lastDoneDate: '2024-01-03T00:00:00.000Z', calculatedAt: '2024-01-01T00:00:00.000Z' },
+      { issueKey: 'TEST-2', boardEntryDate: '2024-01-01T00:00:00.000Z', lastDoneDate: null, calculatedAt: '2024-01-01T00:00:00.000Z' },
+      { issueKey: 'TEST-3', boardEntryDate: '2024-01-01T00:00:00.000Z', lastDoneDate: '2024-01-04T00:00:00.000Z', calculatedAt: '2024-01-01T00:00:00.000Z' },
+      { issueKey: 'TEST-4', boardEntryDate: '2024-01-01T00:00:00.000Z', lastDoneDate: null, calculatedAt: '2024-01-01T00:00:00.000Z' }
+    ]);
+    (calculateIssueCycleTimeFromDates as jest.Mock)
+      .mockReturnValueOnce(cycleTimeResults[0])
+      .mockReturnValueOnce(cycleTimeResults[1]);
     (filterCompletedCycleTimeResults as jest.Mock).mockReturnValue(cycleTimeResults);
     (extractCycleTimes as jest.Mock).mockReturnValue(cycleTimes);
     (calculateMultiplePercentiles as jest.Mock).mockReturnValue(percentileValues);
@@ -155,12 +166,10 @@ describe('calculateKanbanAnalytics', () => {
 
     // Verify the new flow order
     expect(getBoardStatusConfiguration).toHaveBeenCalledWith(boardId, mcpClient);
-    expect(filterCompletedIssues).toHaveBeenCalledWith(allIssues, boardConfig.doneStatusIds);
-    expect(calculateIssuesCycleTime).toHaveBeenCalledWith(
-      completedIssues, 
-      boardId, 
-      boardConfig.toDoStatusIds, 
-      boardConfig.doneStatusIds, 
+    expect(calculateIssuesKeyDates).toHaveBeenCalledWith(
+      allIssues,
+      boardConfig.toDoStatusIds,
+      boardConfig.doneStatusIds,
       mcpClient
     );
     expect(filterCompletedCycleTimeResults).toHaveBeenCalledWith(cycleTimeResults);
@@ -194,6 +203,10 @@ describe('calculateKanbanAnalytics', () => {
     const boardConfig = createMockBoardConfig(boardId);
 
     (getBoardStatusConfiguration as jest.Mock).mockResolvedValue(boardConfig);
+    (calculateIssuesKeyDates as jest.Mock).mockResolvedValue([
+      { issueKey: 'TEST-1', boardEntryDate: null, lastDoneDate: null, calculatedAt: new Date().toISOString() },
+      { issueKey: 'TEST-2', boardEntryDate: null, lastDoneDate: null, calculatedAt: new Date().toISOString() }
+    ]);
     (filterCompletedIssues as jest.Mock).mockReturnValue([]);
     (calculateIssuesCycleTime as jest.Mock).mockResolvedValue([]);
     (filterCompletedCycleTimeResults as jest.Mock).mockReturnValue([]);
@@ -223,20 +236,35 @@ describe('calculateKanbanAnalytics', () => {
     const mcpClient = createMockMcpClient(allIssues);
     const boardConfig = createMockBoardConfig(boardId);
 
+    // Mock key dates - TEST-1 has lastDoneDate in range, TEST-2 doesn't
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    const inRangeDate = new Date(now.getTime() - (15 * 24 * 60 * 60 * 1000)); // 15 days ago
+    const outOfRangeDate = new Date(now.getTime() - (45 * 24 * 60 * 60 * 1000)); // 45 days ago
+
     (getBoardStatusConfiguration as jest.Mock).mockResolvedValue(boardConfig);
-    (filterCompletedIssues as jest.Mock).mockReturnValue([allIssues[0]]); // Only first issue after time filter
-    (calculateIssuesCycleTime as jest.Mock).mockResolvedValue([]);
+    (calculateIssuesKeyDates as jest.Mock).mockResolvedValue([
+      { issueKey: 'TEST-1', boardEntryDate: '2024-01-01T00:00:00.000Z', lastDoneDate: inRangeDate.toISOString(), calculatedAt: '2024-01-01T00:00:00.000Z' },
+      { issueKey: 'TEST-2', boardEntryDate: '2024-01-01T00:00:00.000Z', lastDoneDate: outOfRangeDate.toISOString(), calculatedAt: '2024-01-01T00:00:00.000Z' }
+    ]);
     (filterCompletedCycleTimeResults as jest.Mock).mockReturnValue([]);
     (extractCycleTimes as jest.Mock).mockReturnValue([]);
 
     // Act
-    await calculateKanbanAnalytics(boardId, mcpClient, timePeriodFilter);
+    const result = await calculateKanbanAnalytics(boardId, mcpClient, timePeriodFilter);
 
     // Assert
-    // The filterCompletedIssues should be called with filtered issues, not all issues
-    expect(filterCompletedIssues).toHaveBeenCalled();
-    const filteredIssuesArg = (filterCompletedIssues as jest.Mock).mock.calls[0][0];
-    // Note: In a real test, we'd mock the time period filtering function as well
+    // Verify that calculateIssuesKeyDates was called with all issues first
+    expect(calculateIssuesKeyDates).toHaveBeenCalledWith(
+      allIssues,
+      boardConfig.toDoStatusIds,
+      boardConfig.doneStatusIds,
+      mcpClient
+    );
+    
+    // The result should show filtering happened - no completed issues because dates are filtered
+    expect(result.totalIssues).toBe(2);
+    expect(result.completedIssues).toBe(1); // Only TEST-1 should be in range
   });
 
   test('should apply issue types filter before completion filtering', async () => {
@@ -251,15 +279,27 @@ describe('calculateKanbanAnalytics', () => {
     const boardConfig = createMockBoardConfig(boardId);
 
     (getBoardStatusConfiguration as jest.Mock).mockResolvedValue(boardConfig);
-    (filterCompletedIssues as jest.Mock).mockReturnValue([allIssues[0]]); // Only Story after type filter
-    (calculateIssuesCycleTime as jest.Mock).mockResolvedValue([]);
+    // Mock calculateIssuesKeyDates to return only one issue (the Story) since type filtering happens first
+    (calculateIssuesKeyDates as jest.Mock).mockResolvedValue([
+      { issueKey: 'TEST-1', boardEntryDate: '2024-01-01T00:00:00.000Z', lastDoneDate: '2024-01-03T00:00:00.000Z', calculatedAt: '2024-01-01T00:00:00.000Z' }
+    ]);
     (filterCompletedCycleTimeResults as jest.Mock).mockReturnValue([]);
     (extractCycleTimes as jest.Mock).mockReturnValue([]);
 
     // Act
-    await calculateKanbanAnalytics(boardId, mcpClient, undefined, issueTypesFilter);
+    const result = await calculateKanbanAnalytics(boardId, mcpClient, undefined, issueTypesFilter);
 
     // Assert
-    expect(filterCompletedIssues).toHaveBeenCalled();
+    // Verify that calculateIssuesKeyDates was called with only the filtered issues (Stories only)
+    expect(calculateIssuesKeyDates).toHaveBeenCalledWith(
+      [allIssues[0]], // Only the Story issue after type filtering
+      boardConfig.toDoStatusIds,
+      boardConfig.doneStatusIds,
+      mcpClient
+    );
+    
+    // The result should show filtering happened
+    expect(result.totalIssues).toBe(2); // Original total
+    expect(result.completedIssues).toBe(1); // Only the Story issue
   });
 });
