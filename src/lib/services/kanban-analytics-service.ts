@@ -12,11 +12,14 @@ import { createJiraConfig } from '../jira/config.js';
 import { getBoardStatusConfiguration } from '../jira/board-config.js';
 import { 
   calculateIssuesCycleTime, 
+  calculateIssuesKeyDates,
+  calculateIssueCycleTimeFromDates,
   filterCompletedIssues,
   filterCompletedCycleTimeResults,
   extractCycleTimes, 
   calculateMultiplePercentiles,
-  type IssueCycleTimeResult
+  type IssueCycleTimeResult,
+  type IssueKeyDates
 } from '../kanban/cycle-time-calculator';
 
 /**
@@ -46,17 +49,14 @@ export async function calculateKanbanAnalytics(
     const allIssues = boardIssuesResponse.data;
     console.log(`[KanbanAnalyticsService] Fetched ${allIssues.length} issues for board ${boardId}`);
 
-    // Apply time period filter if specified
-    let filteredIssues = timePeriodFilter ? filterIssuesByTimePeriod(allIssues, timePeriodFilter) : allIssues;
-    console.log(`[KanbanAnalyticsService] After time period filter: ${filteredIssues.length} issues`);
-
-    // Apply issue types filter if specified
+    // Apply issue types filter first (before expensive date calculations)
+    let filteredByTypeIssues = allIssues;
     if (issueTypesFilter && issueTypesFilter.length > 0) {
-      filteredIssues = filterIssuesByType(filteredIssues, issueTypesFilter);
-      console.log(`[KanbanAnalyticsService] After issue types filter [${issueTypesFilter.join(', ')}]: ${filteredIssues.length} issues`);
+      filteredByTypeIssues = filterIssuesByType(filteredByTypeIssues, issueTypesFilter);
+      console.log(`[KanbanAnalyticsService] After issue types filter [${issueTypesFilter.join(', ')}]: ${filteredByTypeIssues.length} issues`);
     }
 
-    // Get board status configuration for cycle time calculation
+    // Get board status configuration for date calculation
     const boardConfig = await getBoardStatusConfiguration(boardId, mcpClient);
     
     if (!boardConfig) {
@@ -64,24 +64,48 @@ export async function calculateKanbanAnalytics(
       return createEmptyAnalyticsResult(boardId, calculatedAt);
     }
 
-    // First, filter completed issues (those in Done status)
-    const completedIssues = filterCompletedIssues(filteredIssues, boardConfig.doneStatusIds);
-    console.log(`[KanbanAnalyticsService] Found ${completedIssues.length} completed issues out of ${filteredIssues.length} filtered`);
-
-    // Calculate cycle times only for completed issues
-    const cycleTimeResults = await calculateIssuesCycleTime(
-      completedIssues, 
-      boardId, 
-      boardConfig.toDoStatusIds, 
-      boardConfig.doneStatusIds, 
+    // Step 1: Calculate key dates (boardEntry and lastDone) for all issues with single changelog pass
+    console.log(`[KanbanAnalyticsService] Calculating key dates for ${filteredByTypeIssues.length} issues...`);
+    const issuesKeyDates = await calculateIssuesKeyDates(
+      filteredByTypeIssues,
+      boardConfig.toDoStatusIds,
+      boardConfig.doneStatusIds,
       mcpClient
+    );
+
+    // Step 2: Apply time period filter using lastDoneDate
+    let dateFilteredIssues: { issue: JiraIssue; keyDates: IssueKeyDates }[] = [];
+    
+    if (timePeriodFilter) {
+      const filteredPairs = filterIssuesByTimePeriodWithDates(
+        filteredByTypeIssues,
+        issuesKeyDates,
+        timePeriodFilter
+      );
+      dateFilteredIssues = filteredPairs;
+      console.log(`[KanbanAnalyticsService] After time period filter: ${dateFilteredIssues.length} issues`);
+    } else {
+      // No time filter - include all issues with their key dates
+      dateFilteredIssues = filteredByTypeIssues.map((issue, index) => ({
+        issue,
+        keyDates: issuesKeyDates[index]
+      }));
+    }
+
+    // Step 3: Filter to only completed issues (those with lastDoneDate)
+    const completedIssuePairs = dateFilteredIssues.filter(pair => pair.keyDates.lastDoneDate !== null);
+    console.log(`[KanbanAnalyticsService] Found ${completedIssuePairs.length} completed issues out of ${dateFilteredIssues.length} date-filtered`);
+
+    // Step 4: Calculate cycle time using pre-calculated dates (no additional changelog calls)
+    const cycleTimeResults = completedIssuePairs.map(pair => 
+      calculateIssueCycleTimeFromDates(pair.issue, boardId, pair.keyDates)
     );
     
     // Filter results with valid cycle times and extract cycle times
     const completedResults = filterCompletedCycleTimeResults(cycleTimeResults);
     const cycleTimes = extractCycleTimes(completedResults);
 
-    console.log(`[KanbanAnalyticsService] Found ${completedResults.length} issues with valid cycle times out of ${completedIssues.length} completed issues`);
+    console.log(`[KanbanAnalyticsService] Found ${completedResults.length} issues with valid cycle times out of ${completedIssuePairs.length} completed issues`);
 
     // Calculate percentiles if we have completed issues
     let percentiles: CycleTimePercentiles;
@@ -100,12 +124,13 @@ export async function calculateKanbanAnalytics(
     }
 
     // Create issue details for the analytics result
+    const completedIssues = completedIssuePairs.map(pair => pair.issue);
     const issuesDetails = createIssueDetails(completedResults, completedIssues);
 
     const result: KanbanAnalyticsResult = {
       boardId,
       totalIssues: allIssues.length,
-      completedIssues: completedIssues.length,
+      completedIssues: completedIssuePairs.length,
       cycleTimePercentiles: percentiles,
       cycleTimeProbability: calculateProbabilityDistribution(cycleTimes),
       issuesDetails,
@@ -302,10 +327,15 @@ function generateRecommendations(
 }
 
 /**
- * Filters issues by time period based on entry date or creation date
+ * Filters issues by time period using pre-calculated key dates
+ * Uses lastDoneDate for filtering completed issues in the selected period
  * Following Clean Code: Pure function, single responsibility
  */
-function filterIssuesByTimePeriod(issues: readonly any[], timePeriodFilter: TimePeriodFilter): readonly any[] {
+function filterIssuesByTimePeriodWithDates(
+  issues: readonly JiraIssue[],
+  keyDates: readonly IssueKeyDates[],
+  timePeriodFilter: TimePeriodFilter
+): { issue: JiraIssue; keyDates: IssueKeyDates }[] {
   const now = new Date();
   let startDate: Date;
   let endDate: Date = now;
@@ -322,27 +352,38 @@ function filterIssuesByTimePeriod(issues: readonly any[], timePeriodFilter: Time
       break;
     case TimePeriod.CUSTOM:
       if (!timePeriodFilter.customRange) {
-        return issues; // No filter if custom range not specified
+        // No filter if custom range not specified - return all paired with their dates
+        return issues.map((issue, index) => ({ issue, keyDates: keyDates[index] }));
       }
       startDate = new Date(timePeriodFilter.customRange.start);
       endDate = new Date(timePeriodFilter.customRange.end);
       break;
     default:
-      return issues; // No filter for unknown types
+      // No filter for unknown types - return all paired with their dates
+      return issues.map((issue, index) => ({ issue, keyDates: keyDates[index] }));
   }
 
-  return issues.filter(issue => {
-    // Use entry date if available, otherwise creation date
-    // Note: This assumes the issue object has these fields - may need adjustment based on actual structure
-    const referenceDate = issue.boardEntryDate || issue.created;
+  const filteredPairs: { issue: JiraIssue; keyDates: IssueKeyDates }[] = [];
+  
+  for (let i = 0; i < issues.length; i++) {
+    const issue = issues[i];
+    const issueKeyDates = keyDates[i];
+    
+    // Use lastDoneDate for filtering (when the issue was completed)
+    // This ensures we consider issues that were COMPLETED in the selected period
+    const referenceDate = issueKeyDates.lastDoneDate;
     
     if (!referenceDate) {
-      return true; // Include issues without date information
+      continue; // Exclude issues that haven't reached "Done" column
     }
 
     const issueDate = new Date(referenceDate);
-    return issueDate >= startDate && issueDate <= endDate;
-  });
+    if (issueDate >= startDate && issueDate <= endDate) {
+      filteredPairs.push({ issue, keyDates: issueKeyDates });
+    }
+  }
+  
+  return filteredPairs;
 }
 
 /**

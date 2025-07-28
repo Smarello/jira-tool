@@ -21,6 +21,110 @@ export interface IssueCycleTimeResult {
 }
 
 /**
+ * Result of calculating key dates for an issue
+ * Contains the dates needed for filtering and cycle time calculation
+ * Following Clean Code: Express intent, single responsibility
+ */
+export interface IssueKeyDates {
+  readonly issueKey: string;
+  readonly boardEntryDate: string | null; // First transition to To Do status
+  readonly lastDoneDate: string | null;   // First transition to Done status
+  readonly calculatedAt: string; // ISO timestamp
+}
+
+/**
+ * Calculates key dates (board entry and last done) for a single issue
+ * Single changelog pass for optimal performance
+ * Following Clean Code: Single responsibility, dependency injection
+ */
+export async function calculateIssueKeyDates(
+  issue: JiraIssue,
+  toDoStatusIds: readonly string[],
+  doneStatusIds: readonly string[],
+  mcpClient: McpAtlassianClient
+): Promise<IssueKeyDates> {
+  const calculatedAt = new Date().toISOString();
+  
+  // Get issue changelog
+  const changelogResponse = await mcpClient.getIssueChangelog(issue.key);
+  
+  if (!changelogResponse.success || !changelogResponse.data) {
+    console.warn(`[CycleTimeCalculator] Failed to get changelog for issue ${issue.key}`);
+    return {
+      issueKey: issue.key,
+      boardEntryDate: null,
+      lastDoneDate: null,
+      calculatedAt
+    };
+  }
+
+  const changelog = changelogResponse.data;
+  
+  // Find first transition to To Do status (board entry)
+  let boardEntryDate: string | null = null;
+  for (const statusId of toDoStatusIds) {
+    if (changelog.statusTransitionIndex.has(statusId)) {
+      const candidateDate = changelog.statusTransitionIndex.get(statusId)!;
+      if (!boardEntryDate || candidateDate < boardEntryDate) {
+        boardEntryDate = candidateDate;
+      }
+    }
+  }
+  
+  // Find first transition to Done status
+  let lastDoneDate: string | null = null;
+  for (const statusId of doneStatusIds) {
+    if (changelog.statusTransitionIndex.has(statusId)) {
+      const candidateDate = changelog.statusTransitionIndex.get(statusId)!;
+      if (!lastDoneDate || candidateDate < lastDoneDate) {
+        lastDoneDate = candidateDate;
+      }
+    }
+  }
+
+  return {
+    issueKey: issue.key,
+    boardEntryDate,
+    lastDoneDate,
+    calculatedAt
+  };
+}
+
+/**
+ * Calculates key dates for multiple issues with optimized changelog fetching
+ * Following Clean Code: Single responsibility, batch processing
+ */
+export async function calculateIssuesKeyDates(
+  issues: readonly JiraIssue[],
+  toDoStatusIds: readonly string[],
+  doneStatusIds: readonly string[],
+  mcpClient: McpAtlassianClient
+): Promise<readonly IssueKeyDates[]> {
+  console.log(`[CycleTimeCalculator] Calculating key dates for ${issues.length} issues`);
+  
+  const results: IssueKeyDates[] = [];
+  
+  for (const issue of issues) {
+    try {
+      const keyDates = await calculateIssueKeyDates(issue, toDoStatusIds, doneStatusIds, mcpClient);
+      results.push(keyDates);
+    } catch (error) {
+      console.error(`[CycleTimeCalculator] Error calculating key dates for issue ${issue.key}:`, error);
+      // Add empty result to maintain array consistency
+      results.push({
+        issueKey: issue.key,
+        boardEntryDate: null,
+        lastDoneDate: null,
+        calculatedAt: new Date().toISOString()
+      });
+    }
+  }
+  
+  console.log(`[CycleTimeCalculator] Calculated key dates for ${results.length} issues`);
+  return results;
+}
+
+/**
  * Calculates cycle time for a single issue
  * Returns null cycle time if issue hasn't reached Done status
  * Following Clean Code: Single responsibility, dependency injection
@@ -103,6 +207,59 @@ export async function calculateIssueCycleTime(
   };
 
   console.log(`[CycleTimeCalculator] Issue ${issue.key}: ${durationHours.toFixed(1)}h (${calculationMethod})`);
+
+  return {
+    issueKey: issue.key,
+    boardId,
+    cycleTime,
+    calculatedAt
+  };
+}
+
+/**
+ * Calculates cycle time for a single issue using pre-calculated key dates
+ * Optimized version that avoids duplicate changelog fetching
+ * Following Clean Code: Single responsibility, performance optimization
+ */
+export function calculateIssueCycleTimeFromDates(
+  issue: JiraIssue,
+  boardId: string,
+  keyDates: IssueKeyDates
+): IssueCycleTimeResult {
+  const calculatedAt = new Date().toISOString();
+  
+  // Issue not completed yet - return null cycle time
+  if (!keyDates.lastDoneDate) {
+    return {
+      issueKey: issue.key,
+      boardId,
+      cycleTime: null,
+      calculatedAt
+    };
+  }
+
+  // Determine start date: use board entry date or fall back to creation date
+  const startDate = keyDates.boardEntryDate || issue.created;
+  const calculationMethod: 'board_entry' | 'creation_date' = keyDates.boardEntryDate ? 'board_entry' : 'creation_date';
+  const isEstimated = !keyDates.boardEntryDate;
+
+  // Calculate duration
+  const startDateTime = new Date(startDate);
+  const endDateTime = new Date(keyDates.lastDoneDate);
+  const durationMs = endDateTime.getTime() - startDateTime.getTime();
+  const durationHours = durationMs / (1000 * 60 * 60);
+  const durationDays = durationHours / 24;
+
+  const cycleTime: CycleTime = {
+    startDate,
+    endDate: keyDates.lastDoneDate,
+    durationDays,
+    durationHours,
+    isEstimated,
+    calculationMethod
+  };
+
+  console.log(`[CycleTimeCalculator] Issue ${issue.key}: ${durationHours.toFixed(1)}h (${calculationMethod}, from pre-calculated dates)`);
 
   return {
     issueKey: issue.key,
