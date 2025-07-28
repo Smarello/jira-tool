@@ -8,6 +8,7 @@
 import KanbanProgressLoader from '../ui/KanbanProgressLoader.astro';
 import PeriodSelector from '../ui/PeriodSelector.astro';
 import IssueTypeSelector from '../ui/IssueTypeSelector.astro';
+import KanbanIssuesModal from './KanbanIssuesModal.astro';
 
 export interface Props {
   boardId: string | null;
@@ -342,6 +343,9 @@ const { boardId, loading = false } = Astro.props;
       />
     </div>
   </div>
+  
+  <!-- Kanban Issues Modal -->
+  <KanbanIssuesModal isOpen={false} />
 </div>
 
 <style>
@@ -392,54 +396,10 @@ const { boardId, loading = false } = Astro.props;
 </style>
 
 <script>
+  import { kanbanState, type KanbanAnalyticsData } from '../../lib/events/kanban-events';
+  
   // Kanban Analytics Client-side Logic
   // Following Clean Code: Express intent, single responsibility per function
-  
-  interface KanbanAnalyticsData {
-    boardId: string;
-    totalIssues: number;
-    completedIssues: number;
-    cycleTimePercentiles: {
-      p50: number;
-      p75: number;
-      p85: number;
-      p95: number;
-      sampleSize: number;
-    };
-    cycleTimeProbability?: {
-      dayRanges: Array<{
-        range: string;           // "0-1", "1-2", etc.
-        probability: number;     // Percentage for this range
-        confidence: number;      // Cumulative percentage (confidence level)
-        isRecommended: boolean;  // Sweet spot ranges
-        count: number;          // Number of issues in this range
-      }>;
-      recommendations: {
-        minDays: number;
-        maxDays: number;
-        confidenceLevel: number;
-      };
-    };
-    issuesDetails: Array<{
-      key: string;
-      summary: string;
-      issueType: {
-        name: string;
-        iconUrl: string;
-      };
-      status: {
-        name: string;
-        statusCategory: {
-          id: number;
-          name: 'To Do' | 'In Progress' | 'Done';
-          colorName: string;
-        };
-      };
-      jiraUrl: string;
-      cycleTimeDays?: number;
-    }>;
-    calculatedAt: string;
-  }
   
   let currentBoardId: string | null = null;
   let isLoading = false;
@@ -447,6 +407,8 @@ const { boardId, loading = false } = Astro.props;
   let currentPeriod: string = 'last-15-days';
   let currentCustomRange: { start: string; end: string } | null = null;
   let currentIssueTypes: string[] = [];
+  let allIssuesData: KanbanAnalyticsData['issuesDetails'] = []; // Store all issues data in memory
+  let currentProbabilityData: KanbanAnalyticsData['cycleTimeProbability'] | null = null; // Store probability data
   
   /**
    * Shows loading overlay with progress tracking
@@ -485,6 +447,15 @@ const { boardId, loading = false } = Astro.props;
    */
   function displayCycleTimeData(data: KanbanAnalyticsData) {
     console.log('[KanbanAnalytics] Displaying cycle time data for board:', data.boardId);
+    
+    // Store all issues data and probability data in memory for modal filtering
+    allIssuesData = data.issuesDetails;
+    currentProbabilityData = data.cycleTimeProbability || null;
+    
+    // Update kanban state with new data
+    kanbanState.updateAnalyticsData(data);
+    
+    console.log('[KanbanAnalytics] Stored', allIssuesData.length, 'issues and probability data in memory');
     
     // Find the cycle time chart container
     const chartContainer = document.querySelector('#cycle-time-chart-container');
@@ -580,7 +551,13 @@ const { boardId, loading = false } = Astro.props;
           ${range.range}
         </td>
         <td class="border border-gray-200 px-3 py-3 text-sm text-gray-700 w-20 text-center">
-          ${range.count}
+          <button 
+            class="issue-count-button text-blue-600 hover:text-blue-800 font-medium hover:underline cursor-pointer transition-colors"
+            onclick="handleIssueCountClick('${currentBoardId}', ${range.minDays}, ${range.maxDays})"
+            title="Click to view issues in this cycle time range"
+          >
+            ${range.count}
+          </button>
         </td>
         <td class="border border-gray-200 px-3 py-3 text-sm text-gray-700 w-30">
           ${range.probability}%
@@ -1002,4 +979,20 @@ const { boardId, loading = false } = Astro.props;
     if (emptyContainer) emptyContainer.classList.add('hidden');
     if (placeholderContainer) placeholderContainer.classList.remove('hidden');
   }
+  
+  /**
+   * Handles click on issue count in probability table
+   * Opens modal with issues for specific cycle time range
+   * Following Clean Code: Express intent, event handling
+   */
+  function handleIssueCountClick(boardId: string, minDays: number, maxDays: number) {
+    console.log('[KanbanAnalytics] Opening issues modal for cycle time range:', minDays, '-', maxDays, 'days');
+    
+    // Use the kanban state manager to show the modal
+    kanbanState.showIssuesModal({ minDays, maxDays });
+  }
+  
+  // Make function available globally for the HTML onclick handlers
+  // TODO: In a future refactor, this could be replaced with event delegation
+  (window as any).handleIssueCountClick = handleIssueCountClick;
 </script>

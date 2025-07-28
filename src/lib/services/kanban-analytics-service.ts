@@ -125,7 +125,8 @@ export async function calculateKanbanAnalytics(
 
     // Create issue details for the analytics result
     const completedIssues = completedIssuePairs.map(pair => pair.issue);
-    const issuesDetails = createIssueDetails(completedResults, completedIssues);
+    const completedKeyDates = completedIssuePairs.map(pair => pair.keyDates);
+    const issuesDetails = createIssueDetails(completedResults, completedIssues, completedKeyDates);
 
     const result: KanbanAnalyticsResult = {
       boardId,
@@ -421,15 +422,19 @@ function createJiraIssueUrl(issueKey: string): string {
  */
 function createIssueDetails(
   completedResults: readonly IssueCycleTimeResult[],
-  allIssues: readonly JiraIssue[]
+  allIssues: readonly JiraIssue[],
+  keyDates: readonly IssueKeyDates[]
 ): readonly IssueDetail[] {
-  // Create a map for fast issue lookup
+  // Create maps for fast lookups
   const issueMap = new Map(allIssues.map(issue => [issue.key, issue]));
+  const keyDatesMap = new Map(keyDates.map((dates, index) => [allIssues[index].key, dates]));
   
   return completedResults
     .filter(result => result.cycleTime !== null) // Only completed issues
     .map(result => {
       const issue = issueMap.get(result.issueKey);
+      const issueDates = keyDatesMap.get(result.issueKey);
+      
       if (!issue) {
         console.warn(`Issue ${result.issueKey} not found in issues list`);
         return null;
@@ -447,7 +452,9 @@ function createIssueDetails(
           statusCategory: issue.status.statusCategory
         },
         jiraUrl: createJiraIssueUrl(issue.key),
-        cycleTimeDays: result.cycleTime!.durationDays
+        cycleTimeDays: result.cycleTime!.durationDays,
+        openedDate: issueDates?.boardEntryDate || issue.created, // Use board entry date or creation date
+        lastDoneDate: issueDates?.lastDoneDate || null
       } as IssueDetail;
     })
     .filter((detail): detail is IssueDetail => detail !== null)

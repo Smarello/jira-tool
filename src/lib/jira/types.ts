@@ -383,6 +383,8 @@ export interface IssueDetail {
   };
   readonly jiraUrl: string; // Direct link to the issue in Jira
   readonly cycleTimeDays?: number; // Cycle time in days if completed
+  readonly openedDate?: string; // Date when issue was created or entered the board
+  readonly lastDoneDate?: string; // Date when issue was last completed
 }
 
 /**
