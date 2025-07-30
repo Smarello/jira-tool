@@ -27,7 +27,9 @@ jest.mock('../../kanban/cycle-time-calculator.js', () => ({
   filterCompletedIssues: jest.fn(),
   filterCompletedCycleTimeResults: jest.fn(),
   extractCycleTimes: jest.fn(),
-  calculateMultiplePercentiles: jest.fn()
+  calculateMultiplePercentiles: jest.fn(),
+  extractAllColumnStatusIds: jest.fn(),
+  calculateIssuesStatusTimes: jest.fn()
 }));
 
 import { getBoardStatusConfiguration } from '../../jira/board-config.js';
@@ -38,7 +40,9 @@ import {
   filterCompletedIssues,
   filterCompletedCycleTimeResults,
   extractCycleTimes,
-  calculateMultiplePercentiles
+  calculateMultiplePercentiles,
+  extractAllColumnStatusIds,
+  calculateIssuesStatusTimes
 } from '../../kanban/cycle-time-calculator.js';
 
 // Test fixtures
@@ -149,6 +153,11 @@ describe('calculateKanbanAnalytics', () => {
       { issueKey: 'TEST-3', boardEntryDate: '2024-01-01T00:00:00.000Z', lastDoneDate: '2024-01-04T00:00:00.000Z', calculatedAt: '2024-01-01T00:00:00.000Z' },
       { issueKey: 'TEST-4', boardEntryDate: '2024-01-01T00:00:00.000Z', lastDoneDate: null, calculatedAt: '2024-01-01T00:00:00.000Z' }
     ]);
+    (extractAllColumnStatusIds as jest.Mock).mockResolvedValue(['10001', '10002', '10003', '10004']);
+    (calculateIssuesStatusTimes as jest.Mock).mockResolvedValue([
+      { issueKey: 'TEST-1', boardId, statusTimes: [{ statusId: '10001', statusName: 'To Do', timeSpentHours: 24, timeSpentDays: 1, entryDate: '2024-01-01T00:00:00.000Z', exitDate: '2024-01-02T00:00:00.000Z' }], calculatedAt: '2024-01-01T00:00:00.000Z' },
+      { issueKey: 'TEST-3', boardId, statusTimes: [{ statusId: '10001', statusName: 'To Do', timeSpentHours: 36, timeSpentDays: 1.5, entryDate: '2024-01-01T00:00:00.000Z', exitDate: '2024-01-02T12:00:00.000Z' }], calculatedAt: '2024-01-01T00:00:00.000Z' }
+    ]);
     (calculateIssueCycleTimeFromDates as jest.Mock)
       .mockReturnValueOnce(cycleTimeResults[0])
       .mockReturnValueOnce(cycleTimeResults[1]);
@@ -170,6 +179,18 @@ describe('calculateKanbanAnalytics', () => {
       allIssues,
       boardConfig.toDoStatusIds,
       boardConfig.doneStatusIds,
+      mcpClient
+    );
+    expect(extractAllColumnStatusIds).toHaveBeenCalledWith(
+      boardConfig.toDoStatusIds,
+      boardConfig.doneStatusIds,
+      mcpClient,
+      boardId
+    );
+    expect(calculateIssuesStatusTimes).toHaveBeenCalledWith(
+      completedIssues,
+      boardId,
+      ['10001', '10002', '10003', '10004'],
       mcpClient
     );
     expect(filterCompletedCycleTimeResults).toHaveBeenCalledWith(cycleTimeResults);
@@ -207,6 +228,8 @@ describe('calculateKanbanAnalytics', () => {
       { issueKey: 'TEST-1', boardEntryDate: null, lastDoneDate: null, calculatedAt: new Date().toISOString() },
       { issueKey: 'TEST-2', boardEntryDate: null, lastDoneDate: null, calculatedAt: new Date().toISOString() }
     ]);
+    (extractAllColumnStatusIds as jest.Mock).mockResolvedValue(['10001', '10002', '10003', '10004']);
+    (calculateIssuesStatusTimes as jest.Mock).mockResolvedValue([]);
     (filterCompletedIssues as jest.Mock).mockReturnValue([]);
     (calculateIssuesCycleTime as jest.Mock).mockResolvedValue([]);
     (filterCompletedCycleTimeResults as jest.Mock).mockReturnValue([]);
@@ -247,6 +270,8 @@ describe('calculateKanbanAnalytics', () => {
       { issueKey: 'TEST-1', boardEntryDate: '2024-01-01T00:00:00.000Z', lastDoneDate: inRangeDate.toISOString(), calculatedAt: '2024-01-01T00:00:00.000Z' },
       { issueKey: 'TEST-2', boardEntryDate: '2024-01-01T00:00:00.000Z', lastDoneDate: outOfRangeDate.toISOString(), calculatedAt: '2024-01-01T00:00:00.000Z' }
     ]);
+    (extractAllColumnStatusIds as jest.Mock).mockResolvedValue(['10001', '10002', '10003', '10004']);
+    (calculateIssuesStatusTimes as jest.Mock).mockResolvedValue([]);
     (filterCompletedCycleTimeResults as jest.Mock).mockReturnValue([]);
     (extractCycleTimes as jest.Mock).mockReturnValue([]);
 
@@ -283,6 +308,8 @@ describe('calculateKanbanAnalytics', () => {
     (calculateIssuesKeyDates as jest.Mock).mockResolvedValue([
       { issueKey: 'TEST-1', boardEntryDate: '2024-01-01T00:00:00.000Z', lastDoneDate: '2024-01-03T00:00:00.000Z', calculatedAt: '2024-01-01T00:00:00.000Z' }
     ]);
+    (extractAllColumnStatusIds as jest.Mock).mockResolvedValue(['10001', '10002', '10003', '10004']);
+    (calculateIssuesStatusTimes as jest.Mock).mockResolvedValue([]);
     (filterCompletedCycleTimeResults as jest.Mock).mockReturnValue([]);
     (extractCycleTimes as jest.Mock).mockReturnValue([]);
 

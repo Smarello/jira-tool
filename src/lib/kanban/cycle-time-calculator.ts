@@ -4,7 +4,7 @@
  * Following Clean Code: Single responsibility, express intent
  */
 
-import type { JiraIssue, CycleTime } from '../jira/types';
+import type { JiraIssue, CycleTime, StatusTimeSpent } from '../jira/types';
 import { PercentileCalculationError } from '../jira/types';
 import type { McpAtlassianClient } from '../mcp/atlassian';
 
@@ -443,4 +443,206 @@ export function calculateMultiplePercentiles(
   console.log(`[CycleTimeCalculator] Calculated ${percentiles.length} percentiles for ${cycleTimes.length} cycle times`);
   
   return result;
+}
+
+/**
+ * Extracts all status IDs from board columns configuration
+ * Returns only statuses that are part of the board columns (ignores other statuses)
+ * Following Clean Code: Single responsibility, express intent
+ */
+export function extractAllColumnStatusIds(
+  toDoStatusIds: readonly string[],
+  doneStatusIds: readonly string[],
+  mcpClient: McpAtlassianClient,
+  boardId: string
+): Promise<readonly string[]> {
+  // For now, we return the combination of toDoStatusIds and doneStatusIds
+  // In a future enhancement, we could fetch the full board configuration
+  // and extract all status IDs from all columns
+  const allStatusIds = [...new Set([...toDoStatusIds, ...doneStatusIds])];
+  console.log(`[CycleTimeCalculator] Extracted ${allStatusIds.length} column status IDs for board ${boardId}: [${allStatusIds.join(', ')}]`);
+  return Promise.resolve(allStatusIds);
+}
+
+
+/**
+ * Result of calculating time spent in each status for an issue
+ * Following Clean Code: Express intent, immutability
+ */
+export interface IssueStatusTimeResult {
+  readonly issueKey: string;
+  readonly boardId: string;
+  readonly statusTimes: readonly StatusTimeSpent[];
+  readonly calculatedAt: string;
+}
+
+/**
+ * Calculates time spent in each column status for a single issue
+ * Only considers statuses that are part of the board columns (ignores transitions to other statuses)
+ * Following Clean Code: Single responsibility, dependency injection
+ */
+export async function calculateIssueStatusTimes(
+  issue: JiraIssue,
+  boardId: string,
+  columnStatusIds: readonly string[],
+  mcpClient: McpAtlassianClient
+): Promise<IssueStatusTimeResult> {
+  const calculatedAt = new Date().toISOString();
+  
+  // Get issue changelog
+  const changelogResponse = await mcpClient.getIssueChangelog(issue.key);
+  
+  if (!changelogResponse.success || !changelogResponse.data) {
+    console.warn(`[CycleTimeCalculator] Failed to get changelog for issue ${issue.key}`);
+    return {
+      issueKey: issue.key,
+      boardId,
+      statusTimes: [],
+      calculatedAt
+    };
+  }
+
+  const changelog = changelogResponse.data;
+  const statusTimes: StatusTimeSpent[] = [];
+  
+  // Build a chronological list of status transitions (only for column statuses)
+  const statusTransitions: Array<{
+    date: string;
+    fromStatusId: string | null;
+    toStatusId: string;
+    toStatusName: string;
+  }> = [];
+
+  // Sort changelog histories chronologically first
+  const sortedHistories = [...changelog.histories].sort((a, b) => 
+    new Date(a.created).getTime() - new Date(b.created).getTime()
+  );
+  
+  // Check if the first status change has a fromStatus included in columnStatusIds
+  // This means the issue was created in that status
+  let initialStatusTransitionAdded = false;
+  
+  // Find the first status change in the changelog
+  for (const history of sortedHistories) {
+    for (const item of history.items) {
+      if (item.field === 'status') {
+        // Check if the fromStatus of the first transition is a column status
+        // This means the issue was created in that column status
+        if (item.from && columnStatusIds.includes(item.from)) {
+          statusTransitions.push({
+            date: issue.created,
+            fromStatusId: null,
+            toStatusId: item.from,
+            toStatusName: item.fromString || item.from
+          });
+        }
+        initialStatusTransitionAdded = true;
+        break; // We only care about the very first status transition
+      }
+    }
+    if (initialStatusTransitionAdded) break;
+  }
+
+  // Add all status transitions from changelog (only for column statuses)
+  for (const history of changelog.histories) {
+    for (const item of history.items) {
+      if (item.field === 'status' && item.to && columnStatusIds.includes(item.to)) {
+        statusTransitions.push({
+          date: history.created,
+          fromStatusId: item.from,
+          toStatusId: item.to,
+          toStatusName: item.toString || item.to
+        });
+      }
+    }
+  }
+
+  // Fallback: if no status transitions were found and current status is in columnStatusIds,
+  // add creation as initial "transition" (for issues with no status changes in changelog)
+  if (statusTransitions.length === 0 && columnStatusIds.includes(issue.status.id)) {
+    statusTransitions.push({
+      date: issue.created,
+      fromStatusId: null,
+      toStatusId: issue.status.id,
+      toStatusName: issue.status.name
+    });
+  }
+
+  // Sort transitions chronologically
+  statusTransitions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  // Calculate time spent in each status
+  for (let i = 0; i < statusTransitions.length; i++) {
+    const transition = statusTransitions[i];
+    const nextTransition = statusTransitions[i + 1];
+    
+    const entryDate = transition.date;
+    const exitDate = nextTransition?.date || null;
+    
+    // Calculate time spent
+    let timeSpentHours = 0;
+    if (exitDate) {
+      const entryTime = new Date(entryDate).getTime();
+      const exitTime = new Date(exitDate).getTime();
+      timeSpentHours = (exitTime - entryTime) / (1000 * 60 * 60);
+    } else {
+      // Still in this status - calculate time from entry to now
+      const entryTime = new Date(entryDate).getTime();
+      const nowTime = new Date().getTime();
+      timeSpentHours = (nowTime - entryTime) / (1000 * 60 * 60);
+    }
+
+    statusTimes.push({
+      statusId: transition.toStatusId,
+      statusName: transition.toStatusName,
+      timeSpentHours: Math.max(0, timeSpentHours),
+      timeSpentDays: Math.max(0, timeSpentHours / 24),
+      entryDate,
+      exitDate
+    });
+  }
+
+  console.log(`[CycleTimeCalculator] Issue ${issue.key}: calculated time for ${statusTimes.length} column statuses`);
+
+  return {
+    issueKey: issue.key,
+    boardId,
+    statusTimes,
+    calculatedAt
+  };
+}
+
+/**
+ * Calculates time spent in each column status for multiple issues
+ * Following Clean Code: Single responsibility, batch processing
+ */
+export async function calculateIssuesStatusTimes(
+  issues: readonly JiraIssue[],
+  boardId: string,
+  columnStatusIds: readonly string[],
+  mcpClient: McpAtlassianClient
+): Promise<readonly IssueStatusTimeResult[]> {
+  console.log(`[CycleTimeCalculator] Starting status time calculation for ${issues.length} issues on board ${boardId}`);
+  console.log(`[CycleTimeCalculator] Considering column statuses: [${columnStatusIds.join(', ')}]`);
+
+  const results: IssueStatusTimeResult[] = [];
+  
+  for (const issue of issues) {
+    try {
+      const result = await calculateIssueStatusTimes(issue, boardId, columnStatusIds, mcpClient);
+      results.push(result);
+    } catch (error) {
+      console.error(`[CycleTimeCalculator] Error calculating status times for issue ${issue.key}:`, error);
+      // Add empty result to maintain array consistency
+      results.push({
+        issueKey: issue.key,
+        boardId,
+        statusTimes: [],
+        calculatedAt: new Date().toISOString()
+      });
+    }
+  }
+  
+  console.log(`[CycleTimeCalculator] Completed status time calculation for ${results.length} issues`);
+  return results;
 }

@@ -366,6 +366,19 @@ export interface MultiplePercentilesResult {
 }
 
 /**
+ * Time spent in a specific status
+ * Following Clean Code: Express intent, immutability
+ */
+export interface StatusTimeSpent {
+  readonly statusId: string;
+  readonly statusName: string;
+  readonly timeSpentHours: number;
+  readonly timeSpentDays: number;
+  readonly entryDate: string;
+  readonly exitDate: string | null; // null if still in this status
+}
+
+/**
  * Issue detail for analytics display
  * Contains essential information for showing issue details in analytics tables
  * Following Clean Code: Value object, expressing UI intent
@@ -385,6 +398,7 @@ export interface IssueDetail {
   readonly cycleTimeDays?: number; // Cycle time in days if completed
   readonly openedDate?: string; // Date when issue was created or entered the board
   readonly lastDoneDate?: string; // Date when issue was last completed
+  readonly statusTimes?: readonly StatusTimeSpent[]; // Time spent in each column status
 }
 
 /**

@@ -18,8 +18,11 @@ import {
   filterCompletedCycleTimeResults,
   extractCycleTimes, 
   calculateMultiplePercentiles,
+  extractAllColumnStatusIds,
+  calculateIssuesStatusTimes,
   type IssueCycleTimeResult,
-  type IssueKeyDates
+  type IssueKeyDates,
+  type IssueStatusTimeResult
 } from '../kanban/cycle-time-calculator';
 
 /**
@@ -107,6 +110,25 @@ export async function calculateKanbanAnalytics(
 
     console.log(`[KanbanAnalyticsService] Found ${completedResults.length} issues with valid cycle times out of ${completedIssuePairs.length} completed issues`);
 
+    // Step 5: Calculate status times for all completed issues
+    const columnStatusIds = await extractAllColumnStatusIds(
+      boardConfig.toDoStatusIds,
+      boardConfig.doneStatusIds,
+      mcpClient,
+      boardId
+    );
+
+    console.log(`[KanbanAnalyticsService] Calculating status times for ${completedIssuePairs.length} completed issues...`);
+    const completedIssues = completedIssuePairs.map(pair => pair.issue);
+    const statusTimeResults = await calculateIssuesStatusTimes(
+      completedIssues,
+      boardId,
+      columnStatusIds,
+      mcpClient
+    );
+
+    console.log(`[KanbanAnalyticsService] Calculated status times for ${statusTimeResults.length} issues`);
+
     // Calculate percentiles if we have completed issues
     let percentiles: CycleTimePercentiles;
     
@@ -123,10 +145,9 @@ export async function calculateKanbanAnalytics(
       };
     }
 
-    // Create issue details for the analytics result
-    const completedIssues = completedIssuePairs.map(pair => pair.issue);
+    // Create issue details for the analytics result with status times
     const completedKeyDates = completedIssuePairs.map(pair => pair.keyDates);
-    const issuesDetails = createIssueDetails(completedResults, completedIssues, completedKeyDates);
+    const issuesDetails = createIssueDetails(completedResults, completedIssues, completedKeyDates, statusTimeResults);
 
     const result: KanbanAnalyticsResult = {
       boardId,
@@ -418,22 +439,26 @@ function createJiraIssueUrl(issueKey: string): string {
 
 /**
  * Creates issue details from completed issues and their cycle time results
+ * Now includes status times for each issue
  * Following Clean Code: Single responsibility, pure function
  */
 function createIssueDetails(
   completedResults: readonly IssueCycleTimeResult[],
   allIssues: readonly JiraIssue[],
-  keyDates: readonly IssueKeyDates[]
+  keyDates: readonly IssueKeyDates[],
+  statusTimeResults: readonly IssueStatusTimeResult[]
 ): readonly IssueDetail[] {
   // Create maps for fast lookups
   const issueMap = new Map(allIssues.map(issue => [issue.key, issue]));
   const keyDatesMap = new Map(keyDates.map((dates, index) => [allIssues[index].key, dates]));
+  const statusTimesMap = new Map(statusTimeResults.map(result => [result.issueKey, result.statusTimes]));
   
   return completedResults
     .filter(result => result.cycleTime !== null) // Only completed issues
     .map(result => {
       const issue = issueMap.get(result.issueKey);
       const issueDates = keyDatesMap.get(result.issueKey);
+      const statusTimes = statusTimesMap.get(result.issueKey);
       
       if (!issue) {
         console.warn(`Issue ${result.issueKey} not found in issues list`);
@@ -454,7 +479,8 @@ function createIssueDetails(
         jiraUrl: createJiraIssueUrl(issue.key),
         cycleTimeDays: result.cycleTime!.durationDays,
         openedDate: issueDates?.boardEntryDate || issue.created, // Use board entry date or creation date
-        lastDoneDate: issueDates?.lastDoneDate || null
+        lastDoneDate: issueDates?.lastDoneDate || null,
+        statusTimes: statusTimes || [] // Include status times for each issue
       } as IssueDetail;
     })
     .filter((detail): detail is IssueDetail => detail !== null)
