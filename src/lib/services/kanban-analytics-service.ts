@@ -41,8 +41,15 @@ export async function calculateKanbanAnalytics(
   const calculatedAt = new Date().toISOString();
   
   try {
-    // Fetch board issues
-    const boardIssuesResponse = await mcpClient.getBoardIssues(boardId);
+    // Calculate updated filter from time period for performance optimization
+    const updatedSince = timePeriodFilter ? calculateUpdatedSinceDate(timePeriodFilter) : undefined;
+    
+    if (updatedSince) {
+      console.log(`[KanbanAnalyticsService] Using updated filter for performance: updated >= ${updatedSince}`);
+    }
+    
+    // Fetch board issues with optional updated filter for better performance
+    const boardIssuesResponse = await mcpClient.getBoardIssues(boardId, updatedSince);
     
     if (!boardIssuesResponse.success || !boardIssuesResponse.data) {
       console.error(`[KanbanAnalyticsService] Failed to fetch issues for board ${boardId}`);
@@ -435,6 +442,42 @@ function createJiraIssueUrl(issueKey: string): string {
     console.warn('Could not create Jira URL, config not available:', error);
     return `#${issueKey}`;
   }
+}
+
+/**
+ * Calculates the updatedSince date for API filtering based on time period
+ * Optimizes performance by only loading relevant issues
+ * Following Clean Code: Pure function, single responsibility
+ */
+function calculateUpdatedSinceDate(timePeriodFilter: TimePeriodFilter): string {
+  const now = new Date();
+  let startDate: Date;
+
+  switch (timePeriodFilter.type) {
+    case TimePeriod.LAST_15_DAYS:
+      startDate = new Date(now.getTime() - (15 * 24 * 60 * 60 * 1000));
+      break;
+    case TimePeriod.LAST_MONTH:
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      break;
+    case TimePeriod.LAST_3_MONTHS:
+      startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      break;
+    case TimePeriod.CUSTOM:
+      if (timePeriodFilter.customRange) {
+        startDate = new Date(timePeriodFilter.customRange.start);
+      } else {
+        // Fallback: last month if custom range not specified
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      }
+      break;
+    default:
+      // Fallback: last month for unknown types
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+  }
+
+  // Format date for JQL (YYYY-MM-DD format)
+  return startDate.toISOString().split('T')[0];
 }
 
 /**

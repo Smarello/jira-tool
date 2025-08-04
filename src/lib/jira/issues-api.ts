@@ -115,7 +115,7 @@ export class JiraIssuesApi {
    * Fetches issues for a board with story points
    * Following Clean Code: Express intent, single responsibility
    */
-  async fetchBoardIssues(boardId: string): Promise<readonly JiraIssueWithPoints[]> {
+  async fetchBoardIssues(boardId: string, updatedSince?: string): Promise<readonly JiraIssueWithPoints[]> {
     const storyPointsField = await this.discoverStoryPointsField();
     
     const fields = [
@@ -133,7 +133,13 @@ export class JiraIssuesApi {
     let total = 0;
 
     do {
-      const endpoint = `/rest/agile/1.0/board/${boardId}/issue?fields=${fields.join(',')}&startAt=${startAt}&maxResults=${maxResults}`;
+      let endpoint = `/rest/agile/1.0/board/${boardId}/issue?fields=${fields.join(',')}&startAt=${startAt}&maxResults=${maxResults}`;
+      
+      // Add updated filter if provided for performance optimization
+      if (updatedSince) {
+        endpoint += `&jql=updated >= "${updatedSince}"`;
+      }
+      
       const response = await this.apiClient.get(endpoint);
       
       const responseData = response.data as any;

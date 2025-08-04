@@ -26,7 +26,7 @@ export interface McpAtlassianClient {
   getBoardInfo(boardId: string): Promise<JiraApiResponse<JiraBoard>>;
   getSprintDetails(sprintId: string): Promise<JiraApiResponse<JiraSprint>>;
   getSprintIssues(sprintId: string): Promise<JiraApiResponse<readonly JiraIssueWithPoints[]>>;
-  getBoardIssues(boardId: string): Promise<JiraApiResponse<readonly JiraIssueWithPoints[]>>;
+  getBoardIssues(boardId: string, updatedSince?: string): Promise<JiraApiResponse<readonly JiraIssueWithPoints[]>>;
   getBoardDoneStatusIds(boardId: string): Promise<JiraApiResponse<readonly string[]>>;
   getBoardToDoStatusIds(boardId: string): Promise<JiraApiResponse<readonly string[]>>;
   getIssueChangelog(issueKey: string): Promise<JiraApiResponse<IssueChangelog>>;
@@ -264,10 +264,10 @@ class McpAtlassianClientImpl implements McpAtlassianClient {
     }
   }
 
-  async getBoardIssues(boardId: string): Promise<JiraApiResponse<readonly JiraIssueWithPoints[]>> {
+  async getBoardIssues(boardId: string, updatedSince?: string): Promise<JiraApiResponse<readonly JiraIssueWithPoints[]>> {
     try {
       // Real API call using dependency-injected service
-      const issues = await this.issuesApi.fetchBoardIssues(boardId);
+      const issues = await this.issuesApi.fetchBoardIssues(boardId, updatedSince);
       
       return {
         data: issues,
