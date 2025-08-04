@@ -68,7 +68,6 @@ export const GET: APIRoute = async () => {
     };
     
     // Validation logic
-    const requiredVars = ['JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN', 'JIRA_PROJECT_KEY'];
     const missingVars: string[] = [];
     
     if (!jiraBaseUrl.value) missingVars.push('JIRA_BASE_URL');

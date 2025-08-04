@@ -98,6 +98,7 @@ const createMockMcpClient = (
   getBoardInfo: jest.fn(),
   getSprintDetails: jest.fn(),
   getSprintIssues: jest.fn().mockResolvedValue(issuesResponse),
+  getBoardIssues: jest.fn(),
   getBoardDoneStatusIds: jest.fn(),
   getIssueChangelog: jest.fn(),
   getBoardToDoStatusIds: jest.fn()
@@ -369,7 +370,11 @@ describe('calculateSprintStoryPoints', () => {
       success: true
     };
     
-    const mcpClient = createMockMcpClient(successResponse);
+    const mockIssuesResponse: JiraApiResponse<readonly JiraIssueWithPoints[]> = {
+      data: [],
+      success: true
+    };
+    const mcpClient = createMockMcpClient(mockIssuesResponse);
     mcpClient.getBoardToDoStatusIds = jest.fn().mockResolvedValue(successResponse);
 
     // Act

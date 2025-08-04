@@ -73,15 +73,16 @@ export const POST: APIRoute = async ({ request }) => {
     const metricsRepository = repositoryFactory.createBoardMetricsRepository();
 
     // Add server-side timestamp if not provided
-    if (!metricsData.lastCalculated) {
-      metricsData.lastCalculated = new Date().toISOString();
-    }
+    const finalMetricsData = !metricsData.lastCalculated ? {
+      ...metricsData,
+      lastCalculated: new Date().toISOString()
+    } : metricsData;
 
     // Save metrics to database
     // Following Clean Code: Single responsibility, error propagation
-    await metricsRepository.saveBoardMetrics(metricsData);
+    await metricsRepository.saveBoardMetrics(finalMetricsData);
 
-    console.log(`[MetricsAPI] Saved metrics for board ${metricsData.boardId}: avg=${metricsData.averageVelocity}, predictability=${metricsData.predictability}, trend=${metricsData.trend}, sprints=${metricsData.sprintsAnalyzed}`);
+    console.log(`[MetricsAPI] Saved metrics for board ${finalMetricsData.boardId}: avg=${finalMetricsData.averageVelocity}, predictability=${finalMetricsData.predictability}, trend=${finalMetricsData.trend}, sprints=${finalMetricsData.sprintsAnalyzed}`);
 
     return new Response(
       JSON.stringify({ 

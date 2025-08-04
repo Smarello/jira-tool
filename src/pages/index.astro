@@ -8,15 +8,14 @@ import Layout from '../components/ui/Layout.astro';
 
 import KpiCard from '../components/analytics/KpiCard.astro';
 import BoardMetricsCard from '../components/analytics/BoardMetricsCard.astro';
-import type { DashboardMetrics } from '../lib/jira/types.js';
+// DashboardMetrics import removed as unused
 import type { DashboardMetrics as BoardMetricsSummary } from './api/dashboard/metrics.ts';
 
 /**
  * Load project metrics with proper error handling
  * Following Clean Code: Express intent, handle failures gracefully
  */
-let projectMetrics: DashboardMetrics | null = null;
-let projectKey: string | null = null;
+// Variables removed - they were declared but never used
 let metricsError: string | null = null;
 
 try {
@@ -30,9 +29,8 @@ try {
     if (data.error) {
       metricsError = data.error;
     } else {
-      projectMetrics = data;
-      // Try to get project key from environment or config
-      projectKey = process.env.JIRA_PROJECT_KEY || 'DEMO';
+      // Variables projectMetrics and projectKey were removed as unused
+      // data structure is available but not assigned to variables
     }
   } else {
     metricsError = `API Error: ${response.status} ${response.statusText}`;

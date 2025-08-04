@@ -15,6 +15,8 @@ import {
   batchCalculateSprintVelocityWithDatabase,
   issuesHaveCompletionDates
 } from './database-validator.js';
+import { VelocityDataTransformer, type SprintIssuesPair } from './transformers/velocity-data-transformer.js';
+import { safeExecuteSprintOperation } from './errors/velocity-errors.js';
 
 /**
  * Extended result type that includes both velocity and issues data
@@ -169,18 +171,18 @@ export async function calculateRealSprintsVelocityWithProgress(
     }
   );
   
-  // Phase 3: Convert batch results to velocity data
+  // Phase 3: Convert batch results to velocity data using transformer
   progressCallback(sprints.length, '', 'calculating');
   const velocities: SprintVelocity[] = [];
   
   for (const result of batchResults) {
-    const sprint = sprintIssuesPairs.find(pair => pair.sprint.id === result.sprintId)?.sprint;
+    const sprint = VelocityDataTransformer.findSprintInPairs(sprintIssuesPairs, result.sprintId);
     if (!sprint) {
       console.warn(`[Calculator] Sprint not found for ID ${result.sprintId}`);
       continue;
     }
     
-    const velocity = calculateSprintVelocity(
+    const velocity = VelocityDataTransformer.createVelocityFromBatchResult(
       sprint,
       result.totalPoints,
       result.validPoints
@@ -189,7 +191,7 @@ export async function calculateRealSprintsVelocityWithProgress(
     velocities.push(velocity);
   }
   
-  const totalIssues = sprintIssuesPairs.reduce((sum, pair) => sum + pair.issues.length, 0);
+  const totalIssues = VelocityDataTransformer.countTotalIssues(sprintIssuesPairs);
   console.log(`[Calculator] Velocity calculation complete: ${velocities.length} sprints, ${totalIssues} total issues`);
   
   return velocities;
@@ -205,66 +207,67 @@ export async function calculateRealSprintsVelocityWithIssues(
 ): Promise<BatchVelocityResult> {
   console.log(`[Calculator] Starting velocity calculation with issues data for ${sprints.length} sprints`);
 
-  // Fetch issues for all sprints and extract completion dates
-  const sprintIssuesPairs = [];
+  // Fetch issues for all sprints and extract completion dates using safe execution
+  const sprintIssuesPairs: SprintIssuesPair[] = [];
   for (const sprint of sprints) {
-    try {
-      console.log(`[Calculator] Fetching issues for sprint ${sprint.name}`);
-      const issuesResponse = await mcpClient.getSprintIssues(sprint.id);
-      
-      if (!issuesResponse.success) {
-        console.warn(`[Calculator] Failed to fetch issues for sprint ${sprint.id}:`, issuesResponse.error);
-        sprintIssuesPairs.push({ sprint, issues: [] });
-        continue;
-      }
-      
-      const rawIssues = issuesResponse.data;
+    console.log(`[Calculator] Fetching issues for sprint ${sprint.name}`);
+    
+    const issues = await safeExecuteSprintOperation(
+      async () => {
+        const issuesResponse = await mcpClient.getSprintIssues(sprint.id);
+        
+        if (!issuesResponse.success) {
+          throw new Error(issuesResponse.error);
+        }
+        
+        const rawIssues = issuesResponse.data;
 
-      // Extract completion dates for the issues
-      const issuesWithCompletion = await extractCompletionDatesForSprint(
-        rawIssues,
-        sprint.originBoardId,
-        mcpClient
-      );
+        // Extract completion dates for the issues
+        const issuesWithCompletion = await extractCompletionDatesForSprint(
+          rawIssues,
+          sprint.originBoardId,
+          mcpClient
+        );
 
-      // Convert back to JiraIssueWithPoints format (completion date is now included)
-      const issues: JiraIssueWithPoints[] = issuesWithCompletion.map(issue => ({
-        ...issue,
-        completionDate: issue.completionDate
-      }));
-
-      sprintIssuesPairs.push({ sprint, issues });
-    } catch (error) {
-      console.warn(`[Calculator] Failed to fetch issues for sprint ${sprint.id}:`, error);
-      sprintIssuesPairs.push({ sprint, issues: [] });
-    }
+        // Convert back to JiraIssueWithPoints format (completion date is now included)
+        return issuesWithCompletion.map(issue => ({
+          ...issue,
+          completionDate: issue.completionDate
+        })) as JiraIssueWithPoints[];
+      },
+      sprint.id,
+      sprint.name,
+      [] as JiraIssueWithPoints[],
+      'issues fetching with completion dates'
+    );
+    
+    sprintIssuesPairs.push({ sprint, issues });
   }
 
   // BATCH VALIDATION: Single API call per board instead of per issue!
   const batchResults = await batchValidateSprintVelocity(sprintIssuesPairs, mcpClient);
 
-  // Convert batch results to velocity data
+  // Convert batch results to velocity data using transformer
   const velocities: SprintVelocity[] = [];
-  const sprintIssuesMap = new Map<string, readonly JiraIssueWithPoints[]>();
+  const sprintIssuesMap = VelocityDataTransformer.createSprintIssuesMap(sprintIssuesPairs);
 
   for (const result of batchResults) {
-    const sprintIssuesPair = sprintIssuesPairs.find(pair => pair.sprint.id === result.sprintId);
-    if (!sprintIssuesPair) {
+    const sprint = VelocityDataTransformer.findSprintInPairs(sprintIssuesPairs, result.sprintId);
+    if (!sprint) {
       console.warn(`[Calculator] Sprint not found for ID ${result.sprintId}`);
       continue;
     }
 
-    const velocity = calculateSprintVelocity(
-      sprintIssuesPair.sprint,
+    const velocity = VelocityDataTransformer.createVelocityFromBatchResult(
+      sprint,
       result.totalPoints,
       result.validPoints
     );
 
     velocities.push(velocity);
-    sprintIssuesMap.set(sprintIssuesPair.sprint.id, sprintIssuesPair.issues);
   }
 
-  const totalIssues = sprintIssuesPairs.reduce((sum, pair) => sum + pair.issues.length, 0);
+  const totalIssues = VelocityDataTransformer.countTotalIssues(sprintIssuesPairs);
   console.log(`[Calculator] Velocity calculation with issues complete: ${velocities.length} sprints, ${totalIssues} total issues`);
 
   return {
@@ -294,10 +297,7 @@ export async function calculateMixedSprintsVelocityWithIssues(
     console.log(`[Calculator] Processing ${sprintsFromDatabase.length} database sprints with optimized validation (NO API CALLS)`);
 
     // Check if database sprints have completion dates for optimized validation
-    const sprintIssuesPairs = sprintsFromDatabase.map(sprintFromDb => ({
-      sprint: sprintFromDb.sprint,
-      issues: sprintFromDb.issues
-    }));
+    const sprintIssuesPairs = VelocityDataTransformer.batchSprintsFromDatabaseToIssuesPairs(sprintsFromDatabase);
 
     // Use database validation if issues have completion dates
     const hasCompletionDates = sprintIssuesPairs.some(pair =>
@@ -326,16 +326,8 @@ export async function calculateMixedSprintsVelocityWithIssues(
       for (const sprintFromDb of sprintsFromDatabase) {
         console.log(`[Calculator] Processing database sprint: ${sprintFromDb.sprint.name}`);
 
-        // Convert database sprint to velocity format
-        const velocity: SprintVelocity = {
-          sprint: sprintFromDb.sprint,
-          committedPoints: sprintFromDb.velocityData?.committedPoints || 0,
-          completedPoints: sprintFromDb.velocityData?.completedPoints || 0,
-          velocityPoints: sprintFromDb.velocityData?.completedPoints || 0,
-          completionRate: sprintFromDb.velocityData?.committedPoints
-            ? Math.round((sprintFromDb.velocityData.completedPoints / sprintFromDb.velocityData.committedPoints) * 100)
-            : 0
-        };
+        // Convert database sprint to velocity format using transformer
+        const velocity = VelocityDataTransformer.sprintFromDatabaseToVelocity(sprintFromDb);
 
         allVelocities.push(velocity);
         allSprintIssuesMap.set(sprintFromDb.sprint.id, sprintFromDb.issues);
@@ -355,8 +347,13 @@ export async function calculateMixedSprintsVelocityWithIssues(
 
     allVelocities.push(...apiResult.velocities);
 
-    // Merge issues maps
-    for (const [sprintId, issues] of apiResult.sprintIssuesMap.entries()) {
+    // Merge issues maps using transformer
+    const mergedMap = VelocityDataTransformer.mergeSprintIssuesMaps(
+      allSprintIssuesMap,
+      apiResult.sprintIssuesMap
+    );
+    allSprintIssuesMap.clear();
+    for (const [sprintId, issues] of mergedMap.entries()) {
       allSprintIssuesMap.set(sprintId, issues);
     }
   }

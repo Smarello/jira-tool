@@ -4,7 +4,7 @@
  */
 
 import { calculateKanbanAnalytics } from '../kanban-analytics-service.js';
-import type { TimePeriodFilter, JiraIssue, KanbanAnalyticsResult } from '../../jira/types.js';
+import type { TimePeriodFilter, JiraIssue } from '../../jira/types.js';
 import { TimePeriod } from '../../jira/types.js';
 import type { McpAtlassianClient } from '../../mcp/atlassian.js';
 import type { BoardStatusConfiguration } from '../../jira/board-config.js';
@@ -261,7 +261,6 @@ describe('calculateKanbanAnalytics', () => {
 
     // Mock key dates - TEST-1 has lastDoneDate in range, TEST-2 doesn't
     const now = new Date();
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
     const inRangeDate = new Date(now.getTime() - (15 * 24 * 60 * 60 * 1000)); // 15 days ago
     const outOfRangeDate = new Date(now.getTime() - (45 * 24 * 60 * 60 * 1000)); // 45 days ago
 

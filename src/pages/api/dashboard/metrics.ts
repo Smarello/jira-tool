@@ -27,7 +27,7 @@ export interface DashboardMetrics {
  * Returns aggregated metrics from all boards in board_metrics table
  * Following Clean Code: Command-Query Separation (query)
  */
-export const GET: APIRoute = async ({ request }) => {
+export const GET: APIRoute = async () => {
   try {
     console.log('[DashboardAPI] Loading aggregated metrics from board_metrics table');
 

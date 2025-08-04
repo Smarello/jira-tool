@@ -27,3 +27,6 @@ pnpm-debug.log*
 .vscode/
 .cursor/
 .github/
+.claude/
+
+coverage/

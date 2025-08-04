@@ -15,24 +15,24 @@ jest.mock('../../jira/config.js', () => ({
 }));
 
 // Jest globals are available without import
-import type { JiraIssue, KanbanAnalyticsResult, StatusTimeSpent } from '../../jira/types';
+import type { JiraIssue } from '../../jira/types';
 import type { McpAtlassianClient } from '../../mcp/atlassian';
 import { calculateKanbanAnalytics } from '../kanban-analytics-service';
 
 // Mock MCP client for integration testing
 function createMockMcpClient(boardIssues: JiraIssue[], changelogData: Record<string, any>): McpAtlassianClient {
   return {
-    getBoardIssues: async (boardId: string) => ({
+    getBoardIssues: async (_boardId: string, _updatedSince?: string) => ({
       success: true,
       data: boardIssues
     }),
     
-    getBoardToDoStatusIds: async (boardId: string) => ({
+    getBoardToDoStatusIds: async (_boardId: string) => ({
       success: true,  
       data: ['10001'] // To Do
     }),
     
-    getBoardDoneStatusIds: async (boardId: string) => ({
+    getBoardDoneStatusIds: async (_boardId: string) => ({
       success: true,
       data: ['10003'] // Done
     }),
@@ -51,27 +51,27 @@ function createMockMcpClient(boardIssues: JiraIssue[], changelogData: Record<str
     },
     
     // Add missing properties to satisfy McpAtlassianClient interface
-    getProjectBoards: async (projectKey: string) => ({
+    getProjectBoards: async (_projectKey: string) => ({
       success: true,
       data: []
     }),
     
-    getBoardSprints: async (boardId: string) => ({
+    getBoardSprints: async (_boardId: string) => ({
       success: true,
       data: []
     }),
     
-    getBoardInfo: async (boardId: string) => ({
+    getBoardInfo: async (_boardId: string) => ({
       success: true,
       data: {} as any
     }),
     
-    getSprintDetails: async (sprintId: string) => ({
+    getSprintDetails: async (_sprintId: string) => ({
       success: true,
       data: {} as any
     }),
     
-    getSprintIssues: async (sprintId: string) => ({
+    getSprintIssues: async (_sprintId: string) => ({
       success: true,
       data: []
     })

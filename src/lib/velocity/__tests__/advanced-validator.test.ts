@@ -22,28 +22,51 @@ const createMockIssue = (
   summary: `Test Issue ${id}`,
   storyPoints,
   status: {
-    name: 'Done'
+    id: '10003',
+    name: 'Done',
+    statusCategory: {
+      id: 3,
+      name: 'Done',
+      colorName: 'green'
+    }
   },
   priority: {
-    name: 'Medium'
+    id: '3',
+    name: 'Medium',
+    iconUrl: 'https://example.com/medium.png'
   },
   issueType: {
-    name: 'Story'
+    id: '10001',
+    name: 'Story',
+    iconUrl: 'https://example.com/story.png',
+    subtask: false
   },
   created: '2024-01-01T00:00:00.000Z',
   updated: '2024-01-15T00:00:00.000Z',
-  assignee: null
+  resolved: null,
+  description: `Description for ${key}`,
+  reporter: {
+    accountId: 'reporter-123',
+    displayName: 'Test Reporter',
+    emailAddress: 'reporter@example.com',
+    avatarUrls: {
+      '16x16': 'https://example.com/16x16.png',
+      '24x24': 'https://example.com/24x24.png',
+      '32x32': 'https://example.com/32x32.png',
+      '48x48': 'https://example.com/48x48.png'
+    }
+  },
+  assignee: null,
+  statusCategoryChangedDate: null
 });
 
 const createValidationResult = (
-  issueId: string,
   isValid: boolean,
   doneTransitionDate?: string
 ): AdvancedValidationResult => ({
-  issueId,
   isValidForVelocity: isValid,
   doneTransitionDate,
-  reason: isValid ? 'Valid issue' : 'Invalid for velocity'
+  reason: isValid ? 'done_at_sprint_end' : 'not_valid'
 });
 
 describe('calculateValidatedStoryPoints', () => {
@@ -58,11 +81,11 @@ describe('calculateValidatedStoryPoints', () => {
     ];
 
     const validationResults: AdvancedValidationResult[] = [
-      createValidationResult('1', true),
-      createValidationResult('2', true),
-      createValidationResult('3', false),
-      createValidationResult('4', false),
-      createValidationResult('5', false)
+      createValidationResult(true),
+      createValidationResult(true),
+      createValidationResult(false),
+      createValidationResult(false),
+      createValidationResult(false)
     ];
 
     // Act
@@ -82,9 +105,9 @@ describe('calculateValidatedStoryPoints', () => {
     ];
 
     const validationResults: AdvancedValidationResult[] = [
-      createValidationResult('1', false),
-      createValidationResult('2', false),
-      createValidationResult('3', false)
+      createValidationResult(false),
+      createValidationResult(false),
+      createValidationResult(false)
     ];
 
     // Act
@@ -104,10 +127,10 @@ describe('calculateValidatedStoryPoints', () => {
     ];
 
     const validationResults: AdvancedValidationResult[] = [
-      createValidationResult('1', true),
-      createValidationResult('2', true),
-      createValidationResult('3', true),
-      createValidationResult('4', false)
+      createValidationResult(true),
+      createValidationResult(true),
+      createValidationResult(true),
+      createValidationResult(false)
     ];
 
     // Act
@@ -138,7 +161,7 @@ describe('calculateValidatedStoryPoints', () => {
     ];
 
     const validationResults: AdvancedValidationResult[] = [
-      createValidationResult('1', true)
+      createValidationResult(true)
       // Missing validation for issue '2'
     ];
 
@@ -162,10 +185,10 @@ describe('filterValidIssuesForVelocity', () => {
     ];
 
     const validationResults: AdvancedValidationResult[] = [
-      createValidationResult('1', true),
-      createValidationResult('2', false),
-      createValidationResult('3', true),
-      createValidationResult('4', false)
+      createValidationResult(true),
+      createValidationResult(false),
+      createValidationResult(true),
+      createValidationResult(false)
     ];
 
     // Act
@@ -185,8 +208,8 @@ describe('filterValidIssuesForVelocity', () => {
     ];
 
     const validationResults: AdvancedValidationResult[] = [
-      createValidationResult('1', false),
-      createValidationResult('2', false)
+      createValidationResult(false),
+      createValidationResult(false)
     ];
 
     // Act
@@ -205,9 +228,9 @@ describe('filterValidIssuesForVelocity', () => {
     ];
 
     const validationResults: AdvancedValidationResult[] = [
-      createValidationResult('1', true),
-      createValidationResult('2', true),
-      createValidationResult('3', true)
+      createValidationResult(true),
+      createValidationResult(true),
+      createValidationResult(true)
     ];
 
     // Act
@@ -239,8 +262,8 @@ describe('filterValidIssuesForVelocity', () => {
     ];
 
     const validationResults: AdvancedValidationResult[] = [
-      createValidationResult('1', true),
-      createValidationResult('2', false)
+      createValidationResult(true),
+      createValidationResult(false)
       // Missing validation for issue '3'
     ];
 
@@ -261,8 +284,8 @@ describe('filterValidIssuesForVelocity', () => {
     ];
 
     const validationResults: AdvancedValidationResult[] = [
-      createValidationResult('1', true),
-      createValidationResult('2', true)
+      createValidationResult(true),
+      createValidationResult(true)
     ];
 
     // Act
