@@ -8,6 +8,7 @@ import Layout from '../../components/ui/Layout.astro';
 import BoardSelector from '../../components/velocity/BoardSelector.astro';
 import ScrumAnalytics from '../../components/analytics/ScrumAnalytics.astro';
 import KanbanAnalytics from '../../components/analytics/KanbanAnalytics.astro';
+import TabSelector from '../../components/ui/TabSelector.astro';
 
 import VelocityProgressLoader from '../../components/ui/VelocityProgressLoader.astro';
 import SprintIssuesModal from '../../components/velocity/SprintIssuesModal.astro';
@@ -77,15 +78,40 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
         
         <!-- Analytics Content - Conditional based on board type -->
         <div class="analytics-content-section">
-          <!-- Scrum Analytics (default view) -->
-          <div id="scrum-analytics-view" class="analytics-view">
-            <ScrumAnalytics boardId={defaultBoardId} loading={defaultBoardId ? true : false} />
+          
+          <!-- NEW: Scrum boards with tab system -->
+          <div id="scrum-tab-analytics" class="scrum-tab-analytics">
+            <TabSelector 
+              tabs={[
+                { id: 'velocity', label: 'Velocity Analytics' },
+                { id: 'cycle-time', label: 'Cycle Time Analytics' }
+              ]}
+              activeTab="velocity"
+              class="mb-6"
+            />
+            
+            <!-- Velocity Tab Content -->
+            <div 
+              id="velocity-tab-content" 
+              class="tab-content"
+              role="tabpanel"
+              aria-labelledby="velocity-tab"
+            >
+              <ScrumAnalytics boardId={defaultBoardId} loading={defaultBoardId ? true : false} />
+            </div>
+            
+            <!-- Cycle Time Tab Content: REUSE KanbanAnalytics -->
+            <div 
+              id="cycle-time-tab-content" 
+              class="tab-content hidden"
+              role="tabpanel"
+              aria-labelledby="cycle-time-tab"
+            >
+              <KanbanAnalytics boardId={defaultBoardId} loading={false} />
+            </div>
           </div>
 
-          <!-- Kanban Analytics (hidden by default) -->
-          <div id="kanban-analytics-view" class="analytics-view hidden">
-            <KanbanAnalytics boardId={defaultBoardId} loading={defaultBoardId ? true : false} />
-          </div>
+
         </div>
         
         <!-- Loading overlay for dynamic updates -->
@@ -113,6 +139,8 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
   // Following Clean Code: Express intent, single responsibility per function
   
   let currentBoardId: string | null = null;
+  let activeTab: 'velocity' | 'cycle-time' = 'velocity';
+  let isCycleTimeLoaded = false;
 
 
 
@@ -120,6 +148,53 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
 
   // Functions removed - updateProgressLoader and createProgressLoaderHTML were unused
 
+  /**
+   * Handles tab switching between velocity and cycle-time
+   * Following Clean Code: Single responsibility, clear state management
+   */
+  function switchTab(tabId: 'velocity' | 'cycle-time') {
+    if (tabId === activeTab) return;
+    
+    console.log(`[VelocityPage] Switching from ${activeTab} to ${tabId}`);
+    
+    // Hide current tab content
+    const currentContent = document.getElementById(`${activeTab}-tab-content`);
+    if (currentContent) currentContent.classList.add('hidden');
+    
+    // Show new tab content
+    const newContent = document.getElementById(`${tabId}-tab-content`);
+    if (newContent) newContent.classList.remove('hidden');
+    
+    // Update active tab state
+    activeTab = tabId;
+    
+    // Lazy load cycle time data when first opened
+    if (tabId === 'cycle-time' && !isCycleTimeLoaded && currentBoardId) {
+      loadCycleTimeForCurrentBoard();
+    }
+  }
+
+  /**
+   * Loads cycle time data for current board (lazy loading)
+   * Following Clean Code: Express intent, async operation
+   */
+  async function loadCycleTimeForCurrentBoard() {
+    if (!currentBoardId || isCycleTimeLoaded) return;
+    
+    console.log(`[VelocityPage] Lazy loading cycle time data for board ${currentBoardId}`);
+    
+    try {
+      // Use existing KanbanAnalytics functionality
+      if ((window as any).kanbanAnalytics?.loadKanbanAnalytics) {
+        await (window as any).kanbanAnalytics.loadKanbanAnalytics(currentBoardId);
+        isCycleTimeLoaded = true;
+        console.log(`[VelocityPage] Cycle time data loaded successfully for board ${currentBoardId}`);
+      }
+    } catch (error) {
+      console.error('[VelocityPage] Failed to load cycle time data:', error);
+      // Keep isCycleTimeLoaded as false to allow retry
+    }
+  }
 
   
 
@@ -144,31 +219,9 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
     }
   }
   
-  /**
-   * Switches between Scrum and Kanban analytics views
-   * Following Clean Code: Express intent, single responsibility
-   */
-  function switchAnalyticsView(boardType: string) {
-    const scrumView = document.getElementById('scrum-analytics-view');
-    const kanbanView = document.getElementById('kanban-analytics-view');
-
-    if (!scrumView || !kanbanView) return;
-
-    if (boardType === 'kanban') {
-      // Show Kanban analytics, hide Scrum analytics
-      scrumView.classList.add('hidden');
-      kanbanView.classList.remove('hidden');
-      console.log('Switched to Kanban analytics view');
-    } else {
-      // Show Scrum analytics (default for 'scrum', 'simple', or unknown types)
-      kanbanView.classList.add('hidden');
-      scrumView.classList.remove('hidden');
-      console.log('Switched to Scrum analytics view');
-    }
-  }
 
   /**
-   * Handles board change event with progress tracking and board type routing
+   * Handles board change event with tab switching based on board type
    * Following Clean Code: Event handling with clear flow
    */
   async function handleBoardChange(event: CustomEvent) {
@@ -178,29 +231,34 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
 
     currentBoardId = boardId;
 
-    // Switch analytics view based on board type
-    switchAnalyticsView(boardType);
+    // Reset cycle time loaded flag for new board
+    isCycleTimeLoaded = false;
+
+    // Determine default tab based on board type
+    const defaultTab: 'velocity' | 'cycle-time' = boardType === 'kanban' ? 'cycle-time' : 'velocity';
+    
+    // Switch to appropriate tab
+    switchTab(defaultTab);
 
     showLoading();
 
     try {
-      if (boardType === 'kanban') {
-        // Update PeriodSelector state for Kanban analytics
-        if ((window as any).kanbanAnalytics?.updatePeriodSelectorState) {
-          (window as any).kanbanAnalytics.updatePeriodSelectorState(boardId, false);
+      if (defaultTab === 'cycle-time') {
+        // Load Kanban analytics for cycle-time tab
+        if ((window as any).kanbanAnalytics?.updateFiltersState) {
+          (window as any).kanbanAnalytics.updateFiltersState(boardId, false);
         }
         
-        // Load Kanban analytics
         if ((window as any).kanbanAnalytics?.loadKanbanAnalytics) {
           await (window as any).kanbanAnalytics.loadKanbanAnalytics(boardId);
+          isCycleTimeLoaded = true;
         }
       } else {
-        // For Scrum boards, ensure Kanban PeriodSelector is disabled
-        if ((window as any).kanbanAnalytics?.updatePeriodSelectorState) {
-          (window as any).kanbanAnalytics.updatePeriodSelectorState(null, false);
+        // Load Scrum analytics for velocity tab
+        if ((window as any).kanbanAnalytics?.updateFiltersState) {
+          (window as any).kanbanAnalytics.updateFiltersState(null, false);
         }
         
-        // Load Scrum analytics (default for 'scrum', 'simple', or unknown types)
         if ((window as any).scrumAnalytics?.loadScrumAnalytics) {
           await (window as any).scrumAnalytics.loadScrumAnalytics(boardId);
         }
@@ -209,13 +267,10 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
     } catch (error) {
       console.error('Failed to load analytics data:', error);
 
-      // Show error state in appropriate analytics component
-      if (boardType === 'kanban') {
+      if (defaultTab === 'cycle-time') {
         console.error('Kanban analytics loading failed');
-        // TODO: Handle Kanban analytics error state
       } else {
         console.error('Scrum analytics loading failed');
-        // TODO: Handle Scrum analytics error state
       }
     } finally {
       hideLoading();
@@ -225,7 +280,7 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
 
   
   /**
-   * Initializes the page with conditional analytics loading
+   * Initializes the page with correct tab and analytics loading
    * Following Clean Code: Setup function with clear intent
    */
   async function initializePage() {
@@ -239,17 +294,21 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
       const boardTypeMatch = selectedOption?.text.match(/\((\w+)\)$/);
       const boardType = boardTypeMatch ? boardTypeMatch[1] : 'scrum';
 
-      // Switch to appropriate analytics view
-      switchAnalyticsView(boardType);
+      // Determine default tab based on board type
+      const defaultTab: 'velocity' | 'cycle-time' = boardType === 'kanban' ? 'cycle-time' : 'velocity';
+      
+      // Switch to appropriate tab
+      switchTab(defaultTab);
 
       try {
-        if (boardType === 'kanban') {
-          // Load Kanban analytics
+        if (defaultTab === 'cycle-time') {
+          // Load Kanban analytics for cycle-time tab
           if ((window as any).kanbanAnalytics?.loadKanbanAnalytics) {
             await (window as any).kanbanAnalytics.loadKanbanAnalytics(currentBoardId);
+            isCycleTimeLoaded = true;
           }
         } else {
-          // Load Scrum analytics (default for 'scrum', 'simple', or unknown types)
+          // Load Scrum analytics for velocity tab
           if ((window as any).scrumAnalytics?.loadScrumAnalytics) {
             await (window as any).scrumAnalytics.loadScrumAnalytics(currentBoardId);
           }
@@ -297,6 +356,10 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
   
   // Event listeners
   document.addEventListener('boardChanged', handleBoardChange as unknown as EventListener);
+  document.addEventListener('tabChanged', (e) => {
+    const { tabId } = (e as CustomEvent).detail;
+    switchTab(tabId);
+  });
   document.addEventListener('DOMContentLoaded', initializePage);
 </script>
 
@@ -307,5 +370,22 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
   
   .velocity-dashboard {
     @apply relative;
+  }
+  
+  /* Tab System Styles */
+  .scrum-tab-analytics {
+    @apply w-full;
+  }
+  
+  .tab-content {
+    @apply transition-opacity duration-200;
+  }
+  
+  .tab-content.hidden {
+    @apply opacity-0;
+  }
+  
+  .analytics-view {
+    @apply w-full;
   }
 </style>
