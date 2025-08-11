@@ -276,14 +276,20 @@ const { selectedIssueTypes = [], disabled = false, class: className = '' } = Ast
   }
   
   /**
-   * Handles select all checkbox
+   * Handles select all checkbox with intelligent toggle behavior
    * Following Clean Code: Express intent, bulk operation
    */
   function handleSelectAll() {
     const selectAllCheckbox = document.getElementById('issue-type-select-all') as HTMLInputElement;
     if (!selectAllCheckbox) return;
     
-    const shouldSelectAll = selectAllCheckbox.checked;
+    // Check current state: all selected vs. at least one unselected
+    const allSelected = availableIssueTypes.every(it => it.selected);
+    
+    // Toggle behavior:
+    // - If all are selected, deselect all
+    // - If at least one is not selected, select all
+    const shouldSelectAll = !allSelected;
     
     // Update all issue types
     availableIssueTypes.forEach(issueType => {
@@ -297,7 +303,7 @@ const { selectedIssueTypes = [], disabled = false, class: className = '' } = Ast
     renderIssueTypes();
     updateSelectedText();
     
-    console.log(`[IssueTypeSelector] ${shouldSelectAll ? 'Selected all' : 'Deselected all'} issue types`);
+    console.log(`[IssueTypeSelector] ${shouldSelectAll ? 'Selected all' : 'Deselected all'} issue types (intelligent toggle)`);
   }
   
   /**
@@ -449,8 +455,8 @@ const { selectedIssueTypes = [], disabled = false, class: className = '' } = Ast
       dropdownButton.disabled = shouldDisable;
     }
     
-    // Reset selection when board changes or loading
-    if (boardId !== currentBoardId || loading) {
+    // Reset selection only when board changes
+    if (boardId !== currentBoardId) {
       availableIssueTypes = [];
       selectedIssueTypes = [];
       updateSelectedText();
