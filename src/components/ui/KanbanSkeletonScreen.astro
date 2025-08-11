@@ -1,0 +1,254 @@
+---
+/**
+ * Kanban Skeleton Screen Component
+ * Following Clean Code: Single responsibility - provides loading placeholders for Kanban analytics
+ * Separation of concerns: UI skeleton separated from business logic
+ */
+
+export interface Props {
+  /** Which section to show skeleton for */
+  section: 'cycle-time' | 'flow-metrics' | 'flow-insights' | 'issues-details';
+  /** Additional CSS classes */
+  class?: string;
+}
+
+const { section, class: className = '' } = Astro.props;
+---
+
+{section === 'cycle-time' && (
+  <div class={`cycle-time-skeleton ${className}`}>
+    <!-- Cycle Time Percentiles Skeleton -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 animate-pulse">
+      <div class="text-center p-4 bg-red-50 rounded-lg">
+        <div class="h-8 bg-gray-200 rounded mb-2 mx-auto w-12"></div>
+        <div class="h-4 bg-gray-200 rounded mb-1"></div>
+        <div class="h-3 bg-gray-200 rounded w-8 mx-auto"></div>
+      </div>
+      <div class="text-center p-4 bg-yellow-50 rounded-lg">
+        <div class="h-8 bg-gray-200 rounded mb-2 mx-auto w-12"></div>
+        <div class="h-4 bg-gray-200 rounded mb-1"></div>
+        <div class="h-3 bg-gray-200 rounded w-8 mx-auto"></div>
+      </div>
+      <div class="text-center p-4 bg-green-50 rounded-lg">
+        <div class="h-8 bg-gray-200 rounded mb-2 mx-auto w-12"></div>
+        <div class="h-4 bg-gray-200 rounded mb-1"></div>
+        <div class="h-3 bg-gray-200 rounded w-8 mx-auto"></div>
+      </div>
+      <div class="text-center p-4 bg-green-100 rounded-lg">
+        <div class="h-8 bg-gray-200 rounded mb-2 mx-auto w-12"></div>
+        <div class="h-4 bg-gray-200 rounded mb-1"></div>
+        <div class="h-3 bg-gray-200 rounded w-8 mx-auto"></div>
+      </div>
+    </div>
+    
+    <!-- Summary Stats Skeleton -->
+    <div class="bg-gray-50 p-4 rounded-lg animate-pulse mb-6">
+      <div class="grid grid-cols-2 gap-4">
+        <div class="flex justify-between">
+          <div class="h-4 bg-gray-200 rounded w-20"></div>
+          <div class="h-4 bg-gray-200 rounded w-8"></div>
+        </div>
+        <div class="flex justify-between">
+          <div class="h-4 bg-gray-200 rounded w-24"></div>
+          <div class="h-4 bg-gray-200 rounded w-8"></div>
+        </div>
+        <div class="flex justify-between">
+          <div class="h-4 bg-gray-200 rounded w-20"></div>
+          <div class="h-4 bg-gray-200 rounded w-8"></div>
+        </div>
+        <div class="flex justify-between">
+          <div class="h-4 bg-gray-200 rounded w-20"></div>
+          <div class="h-4 bg-gray-200 rounded w-24"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Probability Table Skeleton -->
+    <div class="animate-pulse">
+      <div class="h-6 bg-gray-200 rounded w-80 mb-3"></div>
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse bg-white">
+          <thead>
+            <tr class="bg-gray-50">
+              <th class="border border-gray-200 px-4 py-3">
+                <div class="h-4 bg-gray-200 rounded"></div>
+              </th>
+              <th class="border border-gray-200 px-3 py-3">
+                <div class="h-4 bg-gray-200 rounded"></div>
+              </th>
+              <th class="border border-gray-200 px-3 py-3">
+                <div class="h-4 bg-gray-200 rounded"></div>
+              </th>
+              <th class="border border-gray-200 px-3 py-3">
+                <div class="h-4 bg-gray-200 rounded"></div>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {[1, 2, 3].map(() => (
+              <tr class="border-b border-gray-200">
+                <td class="border border-gray-200 px-4 py-3">
+                  <div class="h-4 bg-gray-200 rounded"></div>
+                </td>
+                <td class="border border-gray-200 px-3 py-3">
+                  <div class="h-4 bg-gray-200 rounded mx-auto w-8"></div>
+                </td>
+                <td class="border border-gray-200 px-3 py-3">
+                  <div class="h-4 bg-gray-200 rounded"></div>
+                </td>
+                <td class="border border-gray-200 px-3 py-3">
+                  <div class="h-4 bg-gray-200 rounded"></div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Recommendations Skeleton -->
+      <div class="mt-4 p-4 bg-blue-50 rounded-lg">
+        <div class="flex items-start">
+          <div class="text-blue-500 mr-3 mt-1">💡</div>
+          <div class="flex-1">
+            <div class="h-5 bg-gray-200 rounded w-32 mb-2"></div>
+            <div class="h-4 bg-gray-200 rounded mb-1"></div>
+            <div class="h-4 bg-gray-200 rounded w-4/5"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+{section === 'flow-metrics' && (
+  <div class={`flow-metrics-skeleton bg-white rounded-lg shadow-sm border border-gray-200 p-6 ${className}`}>
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">
+      Flow Metrics
+    </h3>
+    <div class="animate-pulse">
+      <div class="h-4 bg-gray-200 rounded w-1/3 mb-3"></div>
+      <div class="h-8 bg-gray-200 rounded mb-4"></div>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="h-16 bg-gray-200 rounded"></div>
+        <div class="h-16 bg-gray-200 rounded"></div>
+      </div>
+    </div>
+  </div>
+)}
+
+{section === 'flow-insights' && (
+  <div class={`flow-insights-skeleton bg-white rounded-lg shadow-sm border border-gray-200 p-6 ${className}`}>
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">
+      Flow Insights
+    </h3>
+    <div class="animate-pulse">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="p-4 bg-purple-50 rounded-lg">
+          <div class="flex items-start">
+            <div class="text-purple-500 mr-3 mt-1">🔄</div>
+            <div class="flex-1">
+              <div class="h-5 bg-gray-200 rounded w-32 mb-2"></div>
+              <div class="h-4 bg-gray-200 rounded mb-1"></div>
+              <div class="h-4 bg-gray-200 rounded w-4/5"></div>
+            </div>
+          </div>
+        </div>
+        <div class="p-4 bg-green-50 rounded-lg">
+          <div class="flex items-start">
+            <div class="text-green-500 mr-3 mt-1">⚡</div>
+            <div class="flex-1">
+              <div class="h-5 bg-gray-200 rounded w-32 mb-2"></div>
+              <div class="h-4 bg-gray-200 rounded mb-1"></div>
+              <div class="h-4 bg-gray-200 rounded w-4/5"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+{section === 'issues-details' && (
+  <div class={`issues-details-skeleton ${className}`}>
+    <!-- Summary Info Skeleton -->
+    <div class="mb-4 p-4 bg-blue-50 rounded-lg animate-pulse">
+      <div class="flex items-center">
+        <div class="text-blue-500 mr-2">📊</div>
+        <div class="h-4 bg-gray-200 rounded w-64"></div>
+      </div>
+    </div>
+    
+    <!-- Issues Table Skeleton -->
+    <div class="overflow-x-auto animate-pulse">
+      <table class="w-full border-collapse bg-white">
+        <thead>
+          <tr class="bg-gray-50">
+            <th class="border border-gray-200 px-4 py-3">
+              <div class="h-4 bg-gray-200 rounded"></div>
+            </th>
+            <th class="border border-gray-200 px-4 py-3">
+              <div class="h-4 bg-gray-200 rounded"></div>
+            </th>
+            <th class="border border-gray-200 px-4 py-3">
+              <div class="h-4 bg-gray-200 rounded"></div>
+            </th>
+            <th class="border border-gray-200 px-4 py-3">
+              <div class="h-4 bg-gray-200 rounded"></div>
+            </th>
+            <th class="border border-gray-200 px-4 py-3">
+              <div class="h-4 bg-gray-200 rounded"></div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {[1, 2, 3].map((_, index) => (
+            <tr class="border-b border-gray-200">
+              <td class="border border-gray-200 px-4 py-3">
+                <div class="flex items-center">
+                  <div class="w-4 h-4 bg-gray-200 rounded mr-2"></div>
+                  <div class={`h-4 bg-gray-200 rounded ${index === 0 ? 'w-16' : index === 1 ? 'w-20' : 'w-16'}`}></div>
+                </div>
+              </td>
+              <td class="border border-gray-200 px-4 py-3">
+                <div class="h-4 bg-gray-200 rounded w-20"></div>
+              </td>
+              <td class="border border-gray-200 px-4 py-3">
+                <div class={`h-4 bg-gray-200 rounded ${index === 2 ? 'w-3/4' : 'w-full'}`}></div>
+              </td>
+              <td class="border border-gray-200 px-4 py-3">
+                <div class="h-6 bg-gray-200 rounded-full w-16"></div>
+              </td>
+              <td class="border border-gray-200 px-4 py-3">
+                <div class="h-4 bg-gray-200 rounded w-12"></div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
+
+<style>
+  /* Consistent skeleton animations */
+  .cycle-time-skeleton,
+  .flow-metrics-skeleton,
+  .flow-insights-skeleton,
+  .issues-details-skeleton {
+    @apply w-full;
+  }
+  
+  /* Smooth pulse animation for better UX */
+  @keyframes skeleton-pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  
+  .animate-pulse {
+    animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+</style>

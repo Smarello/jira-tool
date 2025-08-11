@@ -9,6 +9,7 @@ import KanbanProgressLoader from '../ui/KanbanProgressLoader.astro';
 import PeriodSelector from '../ui/PeriodSelector.astro';
 import IssueTypeSelector from '../ui/IssueTypeSelector.astro';
 import KanbanIssuesModal from './KanbanIssuesModal.astro';
+import KanbanSkeletonScreen from '../ui/KanbanSkeletonScreen.astro';
 
 export interface Props {
   boardId: string | null;
@@ -174,6 +175,11 @@ const { boardId, loading = false } = Astro.props;
               </div>
             </div>
             
+            <!-- Skeleton Screen for Loading State -->
+            <div id="cycle-time-skeleton" class="hidden">
+              <KanbanSkeletonScreen section="cycle-time" />
+            </div>
+            
             <div id="cycle-time-placeholder" class={!loading ? "text-center py-12" : "hidden"}>
               <div class="text-6xl mb-4">⏱️</div>
               <h4 class="text-xl font-medium text-gray-900 mb-2">
@@ -209,7 +215,10 @@ const { boardId, loading = false } = Astro.props;
               <h3 class="text-lg font-semibold text-gray-900 mb-4">
                 Flow Metrics
               </h3>
-              <div class="text-center py-8">
+              <div id="flow-metrics-content" class="hidden">
+                <!-- Content will be populated dynamically -->
+              </div>
+              <div id="flow-metrics-placeholder" class="text-center py-8">
                 <div class="text-4xl mb-3">📊</div>
                 <p class="text-gray-600 text-sm">
                   Flow metrics will show throughput, WIP limits, and cycle time trends.
@@ -217,6 +226,11 @@ const { boardId, loading = false } = Astro.props;
               </div>
             </div>
           )}
+          
+          <!-- Flow Metrics Skeleton -->
+          <div id="flow-metrics-skeleton" class="hidden">
+            <KanbanSkeletonScreen section="flow-metrics" />
+          </div>
         </div>
       </div>
     </div>
@@ -242,7 +256,10 @@ const { boardId, loading = false } = Astro.props;
             <h3 class="text-lg font-semibold text-gray-900 mb-4">
               Flow Insights
             </h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div id="flow-insights-content" class="hidden">
+              <!-- Content will be populated dynamically -->
+            </div>
+            <div id="flow-insights-placeholder" class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="insight-card p-4 bg-purple-50 rounded-lg">
                 <div class="flex items-start">
                   <div class="text-purple-500 mr-3 mt-1">🔄</div>
@@ -268,6 +285,11 @@ const { boardId, loading = false } = Astro.props;
             </div>
           </div>
         )}
+        
+        <!-- Flow Insights Skeleton -->
+        <div id="flow-insights-skeleton" class="hidden">
+          <KanbanSkeletonScreen section="flow-insights" />
+        </div>
       </div>
     </div>
   </div>
@@ -327,6 +349,11 @@ const { boardId, loading = false } = Astro.props;
       <div id="issues-details-placeholder" class="text-center py-8">
         <div class="text-4xl mb-2">📝</div>
         <p class="text-gray-600">Select a board and apply filters to see the issues used for cycle time calculations.</p>
+      </div>
+      
+      <!-- Issues Details Skeleton -->
+      <div id="issues-details-skeleton" class="hidden">
+        <KanbanSkeletonScreen section="issues-details" />
       </div>
     </div>
   </div>
@@ -397,6 +424,7 @@ const { boardId, loading = false } = Astro.props;
 
 <script>
   import { kanbanState, type KanbanAnalyticsData } from '../../lib/events/kanban-events';
+  import { kanbanSkeletonManager } from '../../lib/ui/kanban-skeleton-manager';
   
   // Kanban Analytics Client-side Logic
   // Following Clean Code: Express intent, single responsibility per function
@@ -412,7 +440,7 @@ const { boardId, loading = false } = Astro.props;
   let issueTypesLoadedForBoard: string | null = null;
   
   /**
-   * Shows loading overlay with progress tracking
+   * Shows loading overlay with progress tracking and skeleton screens
    * Following Clean Code: Clear function name, single responsibility
    */
   function showLoadingOverlay() {
@@ -420,10 +448,13 @@ const { boardId, loading = false } = Astro.props;
     if (overlay) {
       overlay.classList.remove('hidden');
     }
+    
+    // Show skeleton screens instead of previous results
+    kanbanSkeletonManager.showSkeletons();
   }
   
   /**
-   * Hides loading overlay
+   * Hides loading overlay and skeleton screens
    * Following Clean Code: Clear function name, single responsibility
    */
   function hideLoadingOverlay() {
@@ -431,8 +462,12 @@ const { boardId, loading = false } = Astro.props;
     if (overlay) {
       overlay.classList.add('hidden');
     }
+    
+    // Hide skeleton screens when loading is complete
+    kanbanSkeletonManager.hideSkeletons();
   }
   
+
   /**
    * Updates progress loader with current stage and progress
    * Following Clean Code: Express intent, clear parameters
@@ -742,20 +777,12 @@ const { boardId, loading = false } = Astro.props;
     // Enable filters now that we have a board
     updateFiltersState(boardId, false);
     
-     // Load issue types only if not already loaded for this board
-    if (issueTypesLoadedForBoard !== boardId) {
-      console.log(`[KanbanAnalytics] Loading issue types for new board: ${boardId}`);
-      await loadIssueTypesForBoard(boardId);
-      issueTypesLoadedForBoard = boardId;
-    } else {
-      console.log(`[KanbanAnalytics] Issue types already loaded for board: ${boardId}, preserving current selection`);
-    }
-    
     // Cancel any existing request
     if (cancelController) {
       cancelController.abort();
     }
     
+    // Setup loading state BEFORE any API calls
     isLoading = true;
     updateFiltersState(boardId, true); // Disable during loading
     cancelController = new AbortController();
@@ -763,8 +790,21 @@ const { boardId, loading = false } = Astro.props;
     console.log(`[KanbanAnalytics] Loading analytics for board: ${boardId}, period: ${currentPeriod}, issueTypes: [${currentIssueTypes.join(', ')}]`);
     
     try {
+      // Show loading overlay IMMEDIATELY before any API calls
       showLoadingOverlay();
-      updateProgressLoader('issues', 10, 'Fetching board issues...');
+      updateProgressLoader('issues', 10, 'Loading issue types and board data...');
+      
+      // Load issue types only if not already loaded for this board
+      if (issueTypesLoadedForBoard !== boardId) {
+        console.log(`[KanbanAnalytics] Loading issue types for new board: ${boardId}`);
+        updateProgressLoader('issues', 20, 'Loading issue types for board...');
+        await loadIssueTypesForBoard(boardId);
+        issueTypesLoadedForBoard = boardId;
+      } else {
+        console.log(`[KanbanAnalytics] Issue types already loaded for board: ${boardId}, preserving current selection`);
+      }
+      
+      updateProgressLoader('issues', 30, 'Fetching board issues...');
       
       // Build API URL with filters
       const url = new URL(`/api/kanban/${boardId}/analytics`, window.location.origin);
