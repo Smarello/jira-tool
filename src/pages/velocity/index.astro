@@ -79,16 +79,18 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
         <!-- Analytics Content - Conditional based on board type -->
         <div class="analytics-content-section">
           
-          <!-- NEW: Scrum boards with tab system -->
-          <div id="scrum-tab-analytics" class="scrum-tab-analytics">
-            <TabSelector 
-              tabs={[
-                { id: 'velocity', label: 'Velocity Analytics' },
-                { id: 'cycle-time', label: 'Cycle Time Analytics' }
-              ]}
-              activeTab="velocity"
-              class="mb-6"
-            />
+          <!-- Dynamic tab system based on board type -->
+          <div id="board-analytics" class="board-analytics">
+            <div id="tab-selector-container">
+              <TabSelector 
+                tabs={[
+                  { id: 'velocity', label: 'Velocity Analytics' },
+                  { id: 'cycle-time', label: 'Cycle Time Analytics' }
+                ]}
+                activeTab="velocity"
+                class="mb-6"
+              />
+            </div>
             
             <!-- Velocity Tab Content -->
             <div 
@@ -141,12 +143,83 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
   let currentBoardId: string | null = null;
   let activeTab: 'velocity' | 'cycle-time' = 'velocity';
   let isCycleTimeLoaded = false;
+  let currentBoardType: 'scrum' | 'kanban' = 'scrum';
 
 
 
 
 
   // Functions removed - updateProgressLoader and createProgressLoaderHTML were unused
+
+  /**
+   * Updates TabSelector based on board type
+   * Following Clean Code: Single responsibility, clear intent
+   */
+  function updateTabSelector(boardType: 'scrum' | 'kanban') {
+    const container = document.getElementById('tab-selector-container');
+    if (!container) return;
+
+    // Define tabs based on board type
+    const tabs = boardType === 'kanban' 
+      ? [{ id: 'cycle-time', label: 'Cycle Time Analytics' }]
+      : [
+          { id: 'velocity', label: 'Velocity Analytics' },
+          { id: 'cycle-time', label: 'Cycle Time Analytics' }
+        ];
+
+    const defaultActiveTab = boardType === 'kanban' ? 'cycle-time' : 'velocity';
+    
+    // Create new TabSelector HTML
+    const tabsHtml = tabs.map(tab => 
+      `<button
+        type="button"
+        role="tab"
+        aria-selected="${defaultActiveTab === tab.id}"
+        aria-controls="${tab.id}-panel"
+        class="py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200
+               ${defaultActiveTab === tab.id 
+                 ? 'border-blue-500 text-blue-600' 
+                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+               } cursor-pointer hover:border-gray-300"
+        data-tab-id="${tab.id}"
+        title="Switch to ${tab.label}"
+      >
+        ${tab.label}
+      </button>`
+    ).join('');
+
+    // Update container HTML
+    container.innerHTML = `
+      <div class="border-b border-gray-200 mb-6">
+        <nav class="-mb-px flex space-x-8" role="tablist">
+          ${tabsHtml}
+        </nav>
+      </div>
+    `;
+    
+    // Update content visibility
+    updateTabContent(defaultActiveTab);
+    
+    // Update active tab state
+    activeTab = defaultActiveTab;
+  }
+
+  /**
+   * Updates tab content visibility
+   * Following Clean Code: Single responsibility
+   */
+  function updateTabContent(tabId: 'velocity' | 'cycle-time') {
+    // Hide all tab contents
+    const velocityContent = document.getElementById('velocity-tab-content');
+    const cycleTimeContent = document.getElementById('cycle-time-tab-content');
+    
+    if (velocityContent) velocityContent.classList.add('hidden');
+    if (cycleTimeContent) cycleTimeContent.classList.add('hidden');
+    
+    // Show the selected tab content
+    const selectedContent = document.getElementById(`${tabId}-tab-content`);
+    if (selectedContent) selectedContent.classList.remove('hidden');
+  }
 
   /**
    * Handles tab switching between velocity and cycle-time
@@ -157,13 +230,8 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
     
     console.log(`[VelocityPage] Switching from ${activeTab} to ${tabId}`);
     
-    // Hide current tab content
-    const currentContent = document.getElementById(`${activeTab}-tab-content`);
-    if (currentContent) currentContent.classList.add('hidden');
-    
-    // Show new tab content
-    const newContent = document.getElementById(`${tabId}-tab-content`);
-    if (newContent) newContent.classList.remove('hidden');
+    // Update content visibility
+    updateTabContent(tabId);
     
     // Update active tab state
     activeTab = tabId;
@@ -230,20 +298,20 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
     if (boardId === currentBoardId) return;
 
     currentBoardId = boardId;
+    currentBoardType = boardType;
 
     // Reset cycle time loaded flag for new board
     isCycleTimeLoaded = false;
 
-    // Determine default tab based on board type
-    const defaultTab: 'velocity' | 'cycle-time' = boardType === 'kanban' ? 'cycle-time' : 'velocity';
-    
-    // Switch to appropriate tab
-    switchTab(defaultTab);
+    // Update TabSelector based on board type (this also updates content visibility)
+    updateTabSelector(boardType);
+
+    // The default tab is now handled by updateTabSelector
 
     showLoading();
 
     try {
-      if (defaultTab === 'cycle-time') {
+      if (boardType === 'kanban') {
         // Load Kanban analytics for cycle-time tab
         if ((window as any).kanbanAnalytics?.updateFiltersState) {
           (window as any).kanbanAnalytics.updateFiltersState(boardId, false);
@@ -267,7 +335,7 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
     } catch (error) {
       console.error('Failed to load analytics data:', error);
 
-      if (defaultTab === 'cycle-time') {
+      if (boardType === 'kanban') {
         console.error('Kanban analytics loading failed');
       } else {
         console.error('Scrum analytics loading failed');
@@ -293,15 +361,13 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
       const selectedOption = boardSelect.options[boardSelect.selectedIndex];
       const boardTypeMatch = selectedOption?.text.match(/\((\w+)\)$/);
       const boardType = boardTypeMatch ? boardTypeMatch[1] : 'scrum';
+      currentBoardType = boardType as 'scrum' | 'kanban';
 
-      // Determine default tab based on board type
-      const defaultTab: 'velocity' | 'cycle-time' = boardType === 'kanban' ? 'cycle-time' : 'velocity';
-      
-      // Switch to appropriate tab
-      switchTab(defaultTab);
+      // Update TabSelector based on board type (this also updates content visibility)
+      updateTabSelector(boardType as 'scrum' | 'kanban');
 
       try {
-        if (defaultTab === 'cycle-time') {
+        if (boardType === 'kanban') {
           // Load Kanban analytics for cycle-time tab
           if ((window as any).kanbanAnalytics?.loadKanbanAnalytics) {
             await (window as any).kanbanAnalytics.loadKanbanAnalytics(currentBoardId);
@@ -373,7 +439,7 @@ const defaultBoardId = boards.length > 0 ? boards[0].id : null;
   }
   
   /* Tab System Styles */
-  .scrum-tab-analytics {
+  .board-analytics {
     @apply w-full;
   }
   
