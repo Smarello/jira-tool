@@ -409,6 +409,7 @@ const { boardId, loading = false } = Astro.props;
   let currentIssueTypes: string[] = [];
   let allIssuesData: KanbanAnalyticsData['issuesDetails'] = []; // Store all issues data in memory
   let currentProbabilityData: KanbanAnalyticsData['cycleTimeProbability'] | null = null; // Store probability data
+  let issueTypesLoadedForBoard: string | null = null;
   
   /**
    * Shows loading overlay with progress tracking
@@ -724,6 +725,13 @@ const { boardId, loading = false } = Astro.props;
    */
   async function loadKanbanAnalytics(boardId: string, period?: string, customRange?: { start: string; end: string }, issueTypes?: string[]) {
     if (!boardId) return;
+
+    // Check if board has changed to reset issue types tracking
+    const boardChanged = currentBoardId !== boardId;
+    if (boardChanged) {
+      issueTypesLoadedForBoard = null; // Force reload of issue types for new board
+      console.log(`[KanbanAnalytics] Board changed from ${currentBoardId} to ${boardId}, will reload issue types`);
+    }
     
     // Update current state
     currentBoardId = boardId;
@@ -734,8 +742,14 @@ const { boardId, loading = false } = Astro.props;
     // Enable filters now that we have a board
     updateFiltersState(boardId, false);
     
-    // Load issue types if not already loaded or board changed
-    await loadIssueTypesForBoard(boardId);
+     // Load issue types only if not already loaded for this board
+    if (issueTypesLoadedForBoard !== boardId) {
+      console.log(`[KanbanAnalytics] Loading issue types for new board: ${boardId}`);
+      await loadIssueTypesForBoard(boardId);
+      issueTypesLoadedForBoard = boardId;
+    } else {
+      console.log(`[KanbanAnalytics] Issue types already loaded for board: ${boardId}, preserving current selection`);
+    }
     
     // Cancel any existing request
     if (cancelController) {
